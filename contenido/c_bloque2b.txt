@@ -1,0 +1,355 @@
+=== SEMANA 08
+bloque: 2
+titulo: Mapas hash
+resumen: La estructura más importante del backend. Construyes tu propio HashMap con cubetas, colisiones y rehash, lo rompes a propósito con un hashCode malo y lo usas para indexar el tracker por fecha.
+sabes:
+- `equals`, `hashCode` y el bug del `HashSet` (semana 1).
+- Nodos enlazados (semana 6).
+- Tu índice por día (semana 5).
+nuevo:
+- De `hashCode` a índice: `(h ^ (h >>> 16)) & (capacidad - 1)`.
+- Colisiones y encadenamiento.
+- Factor de carga y rehash.
+- Qué hace `HashMap` cuando las colisiones se disparan (treeify).
+objetivos:
+- Tener un `MiHashMap<K, V>` que crece solo.
+- Ver con números cómo un `hashCode` malo convierte O(1) en O(n).
+- Saber si un hábito se hizo un día concreto en O(1).
+tracker: `IndiceRegistros`: registros por fecha en O(1), y cálculo de la racha actual.
+
+--- construir
+titulo: MiHashMap<K, V>
+objetivo: Implementar un mapa hash genérico con encadenamiento y rehash automático.
+reto:
+Crea `estructuras.MiHashMap<K, V>`:
+
+```java
+private static final class Entrada<K, V> {
+    final K clave; final int hash; V valor; Entrada<K, V> sig;
+}
+private Entrada<K, V>[] cubetas; // capacidad inicial 16 (potencia de 2)
+private int tamano;
+```
+
+Métodos:
+
+- `V put(K clave, V valor)`: si la clave existe, reemplaza el valor y devuelve el anterior; si no, añade y devuelve null.
+- `V get(K clave)`, `boolean containsKey(K clave)`, `V remove(K clave)` e `int size()`.
+- **Rehash:** cuando `tamano > capacidad * 0.75`, duplica las cubetas y recoloca todas las entradas.
+- Clave null → `IllegalArgumentException` (simplifica las cosas).
+
+Checks: 1 000 claves (fuerza varios rehash), reemplazar un valor, y borrar del principio, del medio y del final de una cadena.
+hecho:
+- Las 1 000 claves se recuperan con su valor después de varios rehash.
+- Un `put` sobre una clave existente no aumenta `size()`.
+- `remove` funciona aunque la entrada esté en mitad de una cadena.
+minima:
+`put` y `get` con 16 cubetas fijas (sin rehash ni remove).
+pista1:
+Es un array de mini listas enlazadas (semana 6). `get`: calcula el índice de la cubeta y recorre su cadena comparando con `equals`. Para ir más rápido, compara primero el `hash` guardado (un int) y solo si coincide llama a `equals`.
+pista2:
+```java
+private int indice(Object clave, int capacidad) {
+    int h = clave.hashCode();
+    h ^= (h >>> 16);              // mezcla los bits altos con los bajos
+    return h & (capacidad - 1);   // como % capacidad, pero nunca negativo
+}
+```
+`hashCode` puede ser negativo, y `%` con negativos da un resultado negativo (índice inválido). Con capacidad potencia de 2, `& (capacidad - 1)` se queda con los bits bajos; por eso antes se mezclan con los altos.
+pista3:
+Crear un array genérico: `cubetas = (Entrada<K, V>[]) new Entrada[16];` (con `@SuppressWarnings("unchecked")`). Rehash: crea el array nuevo del doble de tamaño; recorre cada cubeta vieja y cada entrada de su cadena, calcula su índice nuevo y métela al principio de la cubeta nueva. Puedes reutilizar el `hash` guardado.
+
+--- medir
+titulo: Rompe el hash a propósito
+objetivo: Medir tu mapa frente a HashMap y ver cómo se degrada con colisiones masivas y con distintos factores de carga.
+reto:
+1. **Frente a `HashMap`:** `put` y `get` de 1 000 000 de claves `Integer`. ¿Cuántas veces más lento es el tuyo?
+2. **Hash malo:** crea `ClaveMala` con un campo int, un `equals` correcto y `hashCode() { return 42; }`. Con el Complejómetro, inserta n claves (n = 2 000, 4 000 y 8 000) en tu mapa. ¿Qué k sale?
+3. **Mecánica oculta de la JDK:** repite el punto 2 con `HashMap`, primero con `ClaveMala` tal cual y después haciendo que implemente `Comparable<ClaveMala>`. Compara las k.
+4. **Factor de carga:** con tu mapa, prueba 0,5, 0,75, 1,0 y 2,0. Apunta el tiempo de `get` y el número de cubetas.
+hecho:
+- La k del hash malo en tu mapa (≈2) y en `HashMap` con y sin `Comparable`.
+- La tabla del factor de carga en la libreta.
+- Sabes qué es "treeify" y por qué necesita `Comparable` para funcionar bien.
+minima:
+Solo el punto 2 con tu mapa.
+pista1:
+Con un `hashCode` constante, todas las claves caen en la misma cubeta: el mapa se convierte en una lista enlazada. Cada `put` recorre la cadena entera para ver si la clave ya existe: O(n) por operación, O(n²) en total.
+pista2:
+Desde Java 8, `HashMap` convierte una cadena en un árbol (rojo-negro) cuando supera 8 elementos y la tabla tiene al menos 64 cubetas. Para ordenar ese árbol usa `compareTo` si la clase es `Comparable`. Si no lo es, no puede ordenar por la clave y la búsqueda sigue siendo casi lineal.
+pista3:
+Factor de carga: más bajo → más cubetas vacías (más memoria) pero cadenas más cortas (más velocidad). Más alto → menos memoria y cadenas más largas. El 0,75 de Java es un compromiso medido durante años. Tus números te dirán si lo ves igual.
+
+--- aplicar
+titulo: El índice por fecha y la racha actual
+objetivo: Indexar los registros del tracker por fecha para responder en O(1) y calcular rachas.
+reto:
+1. Crea `tracker.IndiceRegistros` con un `MiHashMap<LocalDate, MiLista<Registro>>`:
+   - `agregar(Registro r)`
+   - `delDia(LocalDate fecha)`, que devuelve una lista (vacía si no hay nada, nunca null)
+   - `hecho(String habitoId, LocalDate fecha)`, que devuelve un boolean
+2. Reescribe `diasPerfectos` de la semana 5 usando el índice.
+3. `rachaActual(String habitoId, LocalDate hoy)`: cuántos días seguidos, contando hacia atrás desde hoy, está hecho el hábito. Coste: O(longitud de la racha).
+
+**Misión secundaria (opcional):** una caché LRU de capacidad k con `MiHashMap` y los resguardos de `MiListaEnlazada` (semana 6): `get` mueve el elemento al principio y, si se supera k, se elimina el último. Es el secreto de `LinkedHashMap`.
+hecho:
+- `hecho("gym", fecha)` no recorre todos los registros.
+- `diasPerfectos` con el índice da lo mismo que tus versiones anteriores.
+- `rachaActual` probado con una racha de 0, de 1 y de 5 días.
+minima:
+Solo `agregar` y `delDia`, con checks.
+pista1:
+`LocalDate` ya tiene `equals` y `hashCode` bien implementados, y es inmutable. Por eso es una clave perfecta para un mapa.
+pista2:
+En `agregar`: `MiLista<Registro> l = mapa.get(fecha); if (l == null) { l = new MiLista<>(); mapa.put(fecha, l); } l.add(r);`
+pista3:
+```java
+int racha = 0;
+LocalDate d = hoy;
+while (hecho(habitoId, d)) { racha++; d = d.minusDays(1); }
+return racha;
+```
+Cada paso es O(1) gracias al mapa, así que el total es O(racha).
+
+--- explica
+reto:
+Explica qué ocurre dentro de un `HashMap` cuando haces `put("gym", 4)`, desde `hashCode` hasta la cubeta. Después explica por qué, si sobrescribes `equals`, tienes que sobrescribir `hashCode`, usando las cubetas en tu explicación.
+guia:
+- `hashCode` → mezcla de bits → índice.
+- Colisiones y cadenas.
+- Factor de carga y rehash: por qué el mapa crece.
+- Tu experimento del hash malo, y el bug del `HashSet` de la semana 1 visto ahora desde dentro.
+
+=== SEMANA 09
+bloque: 2
+titulo: Recursión
+resumen: Una función que se llama a sí misma deja de dar miedo cuando ves la pila de llamadas que hay debajo. Esta semana aprendes una receta de dos preguntas, mides los límites reales de tu JVM y escribes el serializador JSON que necesitará tu API.
+sabes:
+- Métodos que llaman a otros métodos.
+- Pilas (semana 7) y listas enlazadas (semana 6).
+- Tu `MiHashMap` (semana 8).
+nuevo:
+- La receta: caso base + paso recursivo.
+- La pila de llamadas real (marcos de pila) y `StackOverflowError`.
+- Memoización: recordar resultados para no repetir trabajo.
+- Recorrer estructuras anidadas de profundidad desconocida.
+objetivos:
+- Escribir 4 funciones recursivas siguiendo la receta.
+- Medir la profundidad máxima de tu pila y el efecto de la memoización.
+- Convertir cualquier objeto del tracker a JSON con tu propio código.
+tracker: `Json.escribir(Object)`: serializador JSON propio (lo usará tu API).
+
+--- construir
+titulo: La receta de dos preguntas
+objetivo: Escribir 4 funciones recursivas aplicando siempre el mismo método.
+reto:
+Antes de cada función, escribe como comentario las respuestas a las dos preguntas:
+
+1. **Caso base:** ¿cuál es la versión más pequeña del problema, cuya respuesta sé sin pensar?
+2. **Paso:** si alguien me resolviera el problema un poco más pequeño, ¿cómo uso su respuesta?
+
+Funciones, en orden de dificultad:
+
+1. `int sumar(Nodo<Integer> n)`: suma una lista de nodos de forma recursiva.
+2. `long potencia(long base, int exp)`: primero la versión O(n) y después la **rápida**, O(log n).
+3. `int busquedaBinaria(int[] ordenado, int x, int ini, int fin)`: devuelve la posición o -1.
+4. **(Jefe)** `Nodo<T> invertir(Nodo<T> n)`: invierte una lista enlazada simple de forma recursiva.
+hecho:
+- Cada función tiene su comentario de caso base y paso.
+- `potencia(2, 62)` coincide con `1L << 62`, y la rápida hace unas 7 llamadas en vez de 62 (cuéntalas).
+- La búsqueda binaria funciona con el elemento al principio, al final y ausente.
+minima:
+Las funciones 1 y 2 (versión O(n)).
+pista1:
+`sumar`: caso base, nodo null → 0. Paso: `n.valor + sumar(n.sig)`. La receta siempre tiene esta forma: un if para el caso base y un return que usa la llamada con un problema más pequeño.
+pista2:
+Potencia rápida, con división entera: x^n = (x^(n/2))² si n es par, y x · (x^(n/2))² si es impar. **Guarda la mitad en una variable**: `long mitad = potencia(base, exp / 2);` y después `return exp % 2 == 0 ? mitad * mitad : base * mitad * mitad;`. Si escribes `potencia(base, exp / 2) * potencia(base, exp / 2)` haces dos llamadas y vuelves a O(n).
+pista3:
+Búsqueda binaria: `int medio = ini + (fin - ini) / 2;`. ¿Por qué no `(ini + fin) / 2`? Porque con arrays enormes `ini + fin` puede desbordar el int y dar un negativo: fue un bug real de la JDK que pasó años sin detectarse, hasta 2006. Invertir: caso base, null o un solo nodo → devuélvelo. Paso: `Nodo<T> nuevaCabeza = invertir(n.sig); n.sig.sig = n; n.sig = null; return nuevaCabeza;`.
+
+--- medir
+titulo: Los límites de la pila y el poder de la memoria
+objetivo: Medir cuántas llamadas aguanta tu pila y cuánto trabajo ahorra la memoización.
+reto:
+**Experimento 1: profundidad máxima.**
+
+```java
+static int profundidad = 0;
+static void bajar() { profundidad++; bajar(); }
+```
+
+Llama a `bajar()` dentro de un `try { } catch (StackOverflowError e) { }` e imprime `profundidad`. Después repite con la opción de la JVM `-Xss4m` (en IntelliJ: *Run → Edit Configurations → VM options*). Prueba también a añadir 5 variables locales `long` a `bajar()`: ¿cambia la profundidad?
+
+**Experimento 2: Fibonacci.** Tres versiones, contando llamadas y midiendo el tiempo para n = 25, 30, 35 y 40:
+
+- Ingenua: `fib(n) = fib(n - 1) + fib(n - 2)`
+- Memoizada: con tu `MiHashMap<Integer, Long>`
+- Iterativa: un bucle con dos variables
+hecho:
+- La profundidad máxima por defecto y con `-Xss4m`, apuntadas.
+- La tabla de llamadas y tiempos de las tres versiones de Fibonacci.
+- Sabes por qué el Complejómetro no daría una k estable con la versión ingenua.
+minima:
+Solo Fibonacci ingenuo frente a memoizado con n = 30, contando llamadas.
+pista1:
+Cada llamada ocupa un "marco" en la pila del hilo, con sus parámetros y sus variables locales. La pila tiene un tamaño fijo (`-Xss`), así que más variables locales por marco significa menos llamadas posibles.
+pista2:
+`fib(40)` ingenuo hace unos 330 millones de llamadas: calcula `fib(2)` decenas de millones de veces. Memoizado hace unas 80. Es la diferencia entre un crecimiento exponencial y uno lineal.
+pista3:
+El Complejómetro supone O(n^k) con una k fija. En un crecimiento exponencial, la k que mide no deja de aumentar cuanto más grande es n. Una k que no se estabiliza es la firma de lo exponencial.
+
+--- aplicar
+titulo: Tu serializador JSON
+objetivo: Escribir un serializador JSON recursivo, el problema donde la recursión es la mejor herramienta: datos anidados de profundidad desconocida.
+reto:
+Crea `json.Json` con:
+
+```java
+public static String escribir(Object o)
+```
+
+Debe manejar:
+
+- `null` → `null`
+- `String` → entre comillas, escapando `"`, `\` y los saltos de línea
+- `Number` y `Boolean` → tal cual
+- `Map<String, ?>` → objeto `{"clave":valor,...}`
+- `List<?>` → array `[valor,...]`
+- cualquier otra cosa → `IllegalArgumentException`
+
+Después añade `toMap()` a `Habito` y a `Registro`, y genera el JSON de todo tu tracker: la lista de hábitos, cada uno con sus registros.
+
+Prueba de oro: `escribir(mapa)`, donde `mapa` tiene listas dentro de mapas dentro de listas (3 niveles).
+hecho:
+- La prueba de 3 niveles produce un JSON válido (pégalo en cualquier validador JSON).
+- Un nombre con comillas, `Gym "pesado"`, sale escapado correctamente.
+- El JSON del tracker completo se genera con una sola llamada.
+minima:
+Sin escapado: solo `String`, `Number` y `Map` (sin listas).
+pista1:
+Un único método con una cadena de `instanceof`. Los casos base son los valores simples (`String`, `Number`, `Boolean`, null). El paso recursivo: para cada valor dentro de un `Map` o una `List`, llamas a `escribir` otra vez. La forma del código copia la forma de los datos.
+pista2:
+Pasa un `StringBuilder` hacia abajo: `escribir(Object o, StringBuilder sb)`. Así no creas Strings intermedios (la lección de la semana 0). Para las comas, un `boolean primero = true;` y, antes de cada elemento, `if (!primero) sb.append(','); primero = false;`.
+pista3:
+Para escapar, recorre los caracteres: `"` → `\"`, `\` → `\\`, salto de línea → `\n` (dos caracteres: barra y n). En los checks usa `LinkedHashMap`, no `Map.of`: `Map.of` no garantiza el orden de las claves y tus checks fallarían al azar. Pattern matching de Java 21: `if (o instanceof Map<?, ?> m) { ... }`.
+
+--- explica
+reto:
+Explica qué ocurre en memoria cuando una función se llama a sí misma y por qué existe `StackOverflowError`. Dibuja el árbol de llamadas de `fib(5)` y explica qué cambia con la memoización.
+guia:
+- Marcos de pila: qué contiene cada uno y cuándo se libera.
+- Caso base: por qué sin él la pila se desborda.
+- Tus números de profundidad máxima.
+- El árbol de `fib(5)`: ¿cuántas veces se calcula `fib(2)`? ¿Y con memoización?
+
+=== SEMANA 10
+bloque: 2
+titulo: Árboles binarios de búsqueda
+resumen: Juntas nodos y recursión en la estructura que mantiene los datos ordenados. Y descubres que los datos de tu tracker llegan justo en el peor orden posible para un árbol simple, y por qué existe TreeMap.
+sabes:
+- Nodos (semana 6) y recursión (semana 9).
+- `Comparable<? super T>` (semana 3).
+- Tu `MiHashMap` (semana 8).
+nuevo:
+- El invariante del árbol de búsqueda: izquierda < nodo < derecha.
+- Recorridos: el recorrido en orden da los elementos ordenados.
+- Altura y equilibrio: importan más que el número de nodos.
+- Consultas por rango.
+objetivos:
+- Tener un `MiArbol<K, V>` con inserción, búsqueda, recorrido y rangos.
+- Medir la altura con datos aleatorios y con datos ordenados.
+- Responder "¿qué hice entre el 1 y el 15 de marzo?" sin recorrerlo todo.
+tracker: `IndiceTemporal`: consultas por rango de fechas.
+
+--- construir
+titulo: MiArbol<K, V>
+objetivo: Implementar un árbol binario de búsqueda genérico con operaciones recursivas.
+reto:
+Crea `estructuras.MiArbol<K extends Comparable<? super K>, V>` con un `Nodo` (clave, valor, izq, der):
+
+- `put(K, V)` (si la clave existe, reemplaza el valor)
+- `V get(K)` y `boolean containsKey(K)`
+- `K min()` y `K max()`
+- `int altura()` (árbol vacío: 0; un solo nodo: 1)
+- `MiLista<K> enOrden()`: las claves ordenadas
+- `MiLista<K> rango(K desde, K hasta)`: las claves del rango, **sin visitar ramas que no pueden contenerlas**
+
+Checks: inserta 15, 10, 20, 8, 12, 17 y 25, y comprueba `enOrden`, `altura` (= 3), `min`, `max` y `rango(11, 18)`.
+hecho:
+- Todos los checks con el árbol de 7 nodos pasan.
+- `rango` no entra en ramas imposibles (cuenta los nodos visitados).
+- Insertar una clave repetida no crea un nodo nuevo.
+minima:
+`put`, `get` y `enOrden`.
+pista1:
+En cada nodo hay tres casos: la clave es menor (ve a la izquierda), mayor (ve a la derecha) o igual (reemplaza el valor). Si llegas a null, ese es el sitio del nodo nuevo.
+pista2:
+`enOrden`: recorre la izquierda, añade el nodo, recorre la derecha (recursivo). `altura(n)`: si n es null, 0; si no, `1 + Math.max(altura(n.izq), altura(n.der))`. `rango`: baja por la izquierda solo si `desde < n.clave`, y por la derecha solo si `hasta > n.clave`.
+pista3:
+El truco del `put` recursivo es devolver el nodo:
+```java
+private Nodo<K, V> put(Nodo<K, V> n, K k, V v) {
+    if (n == null) { tamano++; return new Nodo<>(k, v); }
+    int c = k.compareTo(n.clave);
+    if (c < 0) n.izq = put(n.izq, k, v);
+    else if (c > 0) n.der = put(n.der, k, v);
+    else n.valor = v;
+    return n;
+}
+// public void put(K k, V v) { raiz = put(raiz, k, v); }
+```
+
+--- medir
+titulo: El peor caso que te espera
+objetivo: Medir cómo la forma del árbol (su altura) decide su velocidad, y compararlo con TreeMap y HashMap.
+reto:
+1. **Altura:** inserta 10 000 claves en tu árbol en orden aleatorio y en orden creciente. Apunta la altura de cada uno y compárala con log₂(10 000) ≈ 13,3.
+2. **Velocidad:** 10 000 `get` aleatorios en cada uno de los dos árboles.
+3. **Contra la JDK:** `get` de 1 000 000 de claves en tu árbol (aleatorio), en `TreeMap` y en `HashMap`.
+
+Si con datos ordenados ves un `StackOverflowError`, enhorabuena: has reproducido el peor caso. Usa 5 000 claves o sube `-Xss` (semana 9).
+hecho:
+- Las dos alturas apuntadas y comparadas con log₂(n).
+- Sabes cuántas veces más lento es el árbol degenerado.
+- Sabes quién gana en `get`, y qué ofrece a cambio el que pierde.
+minima:
+Solo el punto 1 con 1 000 claves.
+pista1:
+Con datos aleatorios, la altura sale de unas 2-3 veces log₂(n): entre 25 y 35 para 10 000 claves. Con datos ordenados, cada nodo nuevo va siempre a la derecha: el árbol es una lista enlazada de altura n.
+pista2:
+`TreeMap` es un árbol rojo-negro: después de cada inserción hace rotaciones para mantener la altura por debajo de 2·log₂(n+1), pase lo que pase. No tienes que implementarlo, solo entender la idea: pagar un poco en cada inserción para no caer nunca en el peor caso.
+pista3:
+`HashMap` gana en `get` (O(1) frente a O(log n)), pero no tiene orden: no puede darte el mínimo, el máximo ni un rango sin recorrerlo todo. Un árbol te da orden a cambio de un factor log n.
+
+--- aplicar
+titulo: Consultas por rango de fechas
+objetivo: Indexar los registros por fecha en un árbol para responder consultas por rango, y descubrir el peor caso en tu propio tracker.
+reto:
+1. Crea `tracker.IndiceTemporal` con `MiArbol<LocalDate, MiLista<Registro>>` y estas consultas:
+   - `entre(LocalDate desde, LocalDate hasta)`: registros del rango, ordenados por fecha
+   - `primeraFecha()` y `ultimaFecha()`
+   - `resumenMensual(YearMonth mes)`: por hábito, los días hechos en ese mes
+2. Carga un año de registros generados **día a día, en orden**, como llegan en la vida real. Imprime la altura del árbol.
+3. **Giro final:** acabas de reproducir el peor caso en tu propio tracker. Cambia `IndiceTemporal` para que use `TreeMap` y comprueba que todo sigue funcionando (`subMap(desde, true, hasta, true)` te da el rango).
+4. Escribe en la libreta una tabla de decisión: ¿qué índice usas para cada consulta del tracker (`HashMap` o árbol) y por qué?
+hecho:
+- `entre` devuelve los registros ordenados, probado con checks.
+- Has visto la altura del árbol con datos en orden (≈365).
+- `IndiceTemporal` funciona con `TreeMap` y tu tabla de decisión está en la libreta.
+minima:
+Solo `entre` con tu árbol y datos en orden aleatorio.
+pista1:
+`LocalDate` es `Comparable<ChronoLocalDate>`. Por eso definiste el límite como `Comparable<? super K>` (semana 3): aquí ves para qué servía.
+pista2:
+Para `entre`: usa tu `rango(desde, hasta)` para obtener las fechas y después `get` de cada una para juntar sus registros. Como salen del recorrido en orden, ya vienen ordenados.
+pista3:
+Tabla de decisión típica: "¿hice gym el día X?" → `HashMap` (O(1)). "¿Qué hice entre X e Y?", "primera y última fecha", "informe mensual" → árbol (O(log n + k)). Y la conclusión del giro: con datos que llegan ordenados, un árbol sin equilibrar es una lista enlazada disfrazada.
+
+--- explica
+reto:
+¿Cuándo usarías un árbol en lugar de un `HashMap`? Explica por qué insertar datos ya ordenados destroza un árbol de búsqueda simple, y cómo lo evita `TreeMap` (solo la idea, sin los detalles del rojo-negro).
+guia:
+- El invariante izquierda < nodo < derecha y el recorrido en orden.
+- La altura manda: tus números con datos aleatorios y ordenados.
+- Orden y rangos frente a O(1): tu tabla de decisión.
+- La idea del equilibrado: pagar un poco en cada inserción.

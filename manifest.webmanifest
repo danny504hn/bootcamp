@@ -1,0 +1,21 @@
+{
+  "name": "La Rotación · Bootcamp Java",
+  "short_name": "La Rotación",
+  "description": "Bootcamp de Java personal: construir, medir, aplicar y explicar.",
+  "lang": "es",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f1f1ef",
+  "theme_color": "#131314",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Hoja de personaje", "url": "./#hoja", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Libreta", "url": "./#libreta", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

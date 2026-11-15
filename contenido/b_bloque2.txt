@@ -1,0 +1,538 @@
+=== SEMANA 04
+bloque: 2
+titulo: Array frente a lista dinámica
+resumen: Construyes tu propio ArrayList desde cero. Es la estructura que más vas a usar en tu vida, y después de esta semana sabrás exactamente qué hace cada vez que llamas a add.
+sabes:
+- Arrays, bucles e índices.
+- Usar `ArrayList`.
+- Escribir clases genéricas (semana 3).
+nuevo:
+- Capacidad frente a tamaño.
+- Hacer crecer el array interno con `Arrays.copyOf` y `System.arraycopy`.
+- Coste amortizado: por qué `add` es "casi siempre" barato.
+- El truco de `(T) datos[i]` sobre un `Object[]`.
+objetivos:
+- Tener un `MiLista<T>` que pase 10 checks.
+- Contar cuántas copias de elementos hace tu lista al crecer, con dos estrategias distintas.
+- Calcular una media móvil de sueño en O(n).
+tracker: `MiLista<T>` y `Estadisticas.mediaMovil` para las horas de sueño.
+
+--- construir
+titulo: MiLista<T>, tu propio ArrayList
+objetivo: Implementar una lista dinámica genérica sobre un array que crece cuando se llena.
+reto:
+Crea `estructuras.MiLista<T>` con un `Object[] datos` (capacidad inicial 4) y un `int tamano`:
+
+```java
+void add(T x)                 // al final; si está lleno, duplica la capacidad
+void add(int indice, T x)     // inserta desplazando a la derecha
+T get(int indice)
+T set(int indice, T x)        // devuelve el valor anterior
+T remove(int indice)          // desplaza a la izquierda y devuelve el eliminado
+int indexOf(T x)              // -1 si no está (usa equals)
+int size()
+int capacidad()               // datos.length, para tus pruebas
+long copias()                 // total de elementos copiados al crecer
+```
+
+Los índices inválidos lanzan `IndexOutOfBoundsException` con un mensaje como `"índice 7, tamaño 5"`.
+
+Escribe al menos 10 checks: añadir más de 4 elementos (fuerza el crecimiento), insertar en medio, eliminar el primero y el último, `indexOf` de algo que no está…
+hecho:
+- Pasan 10 checks, incluido uno que verifica que la capacidad pasa de 4 a 8 al añadir el quinto elemento.
+- `remove` deja a `null` la posición que queda libre al final.
+- `get(tamano)` lanza excepción aunque el array interno tenga hueco.
+minima:
+`add(T)`, `get` y `size` con crecimiento ×2, y 4 checks.
+pista1:
+Hay dos números distintos: la **capacidad** (`datos.length`, cuánto cabe) y el **tamaño** (`tamano`, cuánto has usado). En `add`: si `tamano == datos.length`, crece; después, `datos[tamano++] = x;`.
+pista2:
+Crecer: `datos = Arrays.copyOf(datos, datos.length * 2); copias += tamano;`. Eliminar en `i`: `System.arraycopy(datos, i + 1, datos, i, tamano - i - 1); datos[--tamano] = null;`. Ese `null` evita una fuga de memoria: si no, el array seguiría apuntando al objeto y el recolector de basura no podría liberarlo.
+pista3:
+`get` necesita un cast, porque el array es de `Object`:
+```java
+@SuppressWarnings("unchecked")
+public T get(int i) {
+    comprobarIndice(i);
+    return (T) datos[i];
+}
+```
+El cast es seguro porque solo tú metes elementos y siempre son T. No puedes hacer `new T[4]` por el borrado de tipos (tu explicación de la semana 3).
+
+--- medir
+titulo: Amortización con números reales
+objetivo: Demostrar con tus contadores por qué crecer ×2 es mucho mejor que crecer de 100 en 100, y comparar tu lista con ArrayList.
+reto:
+**Experimento 1: estrategias de crecimiento.** Añade a `MiLista` un constructor que permita elegir la estrategia: `×2` o `+100`. Para n = 100 000, 200 000 y 400 000 elementos, apunta `copias()` y el tiempo con cada estrategia. Haz una tabla:
+
+```
+n        copias ×2    copias +100    tiempo ×2    tiempo +100
+100000   ...
+```
+
+**Experimento 2: tu lista frente a `ArrayList`** (con `Bench`, n = 1 000 000):
+
+- `add` al final de n elementos
+- n llamadas a `get` en posiciones aleatorias (usa `new Random(42)` para que sea repetible)
+- 10 000 `remove(0)` frente a 10 000 `remove(último)`
+hecho:
+- La tabla del experimento 1 está completa en la libreta.
+- Sabes qué pasa con las copias de cada estrategia cuando n se duplica.
+- Sabes por qué `remove(0)` es tan caro y `remove(último)` no.
+minima:
+Solo el experimento 1, sin tiempos: apunta las copias.
+pista1:
+Con ×2, las copias son 4 + 8 + 16 + … hasta n: esa suma siempre es menor que 2n. Con +100 son 100 + 200 + 300 + … + n, que es aproximadamente n²/200. Compruébalo con tus números.
+pista2:
+Patrón esperado: con ×2, si n se duplica, las copias se duplican (lineal). Con +100, si n se duplica, las copias se multiplican por 4 (cuadrático). Por eso añadir es "O(1) amortizado": el coste total repartido entre n operaciones es constante por operación.
+pista3:
+Dato de datamining: `ArrayList` crece ×1,5 (`oldCapacity + (oldCapacity >> 1)`), no ×2. Es un compromiso: ×2 hace menos copias, pero puede desperdiciar hasta la mitad de la memoria. Si tienes tiempo, prueba ×1,5 en tu lista y compara.
+
+--- aplicar
+titulo: Media móvil de sueño
+objetivo: Usar tu `MiLista` en el problema donde un array dinámico es la mejor opción: acceso por índice a una serie temporal.
+reto:
+1. Genera 90 noches de horas de sueño en una `MiLista<Double>` con `new Random(42)` (valores entre 5.0 y 9.0).
+2. Calcula la **media móvil de 7 días** (para cada día desde el séptimo, la media de ese día y los 6 anteriores) de dos formas:
+   - **Ingenua:** para cada día, suma los 7 valores.
+   - **Ventana deslizante:** mantén una suma; en cada paso suma el valor que entra y resta el que sale.
+3. Comprueba con `Check` que las dos dan lo mismo, con margen: `Math.abs(a - b) < 1e-9`.
+4. Pinta un gráfico ASCII de la media móvil: una barra de `█` por día, escalada.
+
+¿Por qué aquí gana el array? Porque necesitas `get(i - 7)` al instante: acceso por índice en O(1).
+hecho:
+- Las dos versiones coinciden en los 84 días.
+- El gráfico ASCII se ve por consola.
+- Sabes cuántas sumas hace cada versión para 90 días y para 100 000 días.
+minima:
+Solo la versión ingenua, comprobada con 3 días calculados a mano.
+pista1:
+La primera ventana (días 0 a 6) la sumas entera. A partir de ahí, para el día i: `suma += datos.get(i) - datos.get(i - 7);`. La media es `suma / 7`.
+pista2:
+Para el gráfico: `int barras = (int) Math.round((media - 5.0) * 10);` y `"█".repeat(barras)`. Pon el número de día delante con `printf("%3d %s%n", dia, "█".repeat(barras))`.
+pista3:
+Coste: la ingenua hace 7 sumas por día (con ventana k, `n·k` en total); la deslizante hace 2 por día (`2n`), sea cual sea la ventana. Con una ventana de 30 días, la diferencia es ×15. El margen de `1e-9` existe porque sumar y restar doubles acumula pequeños errores de redondeo.
+
+--- explica
+reto:
+¿Por qué añadir al final de una lista dinámica es "O(1) amortizado" si a veces tiene que copiar el array entero? Explícalo con tus números de copias.
+guia:
+- Capacidad frente a tamaño.
+- Qué pasa exactamente cuando el array se llena.
+- Por qué con ×2 la suma de todas las copias nunca llega a 2n.
+- Por qué con +100 todo se rompe (tus números).
+
+=== SEMANA 05
+bloque: 2
+titulo: Complejidad: demuéstralo, no lo adivines
+resumen: Big O deja de ser teoría de examen. Construyes una herramienta que mide la complejidad de cualquier código de forma experimental, y la usas para optimizar una función lenta del tracker.
+sabes:
+- Medir con tu `Bench`.
+- Tus números de la semana 4: con ×2 las copias se duplican; con +100 se multiplican por 4.
+nuevo:
+- Notación Big O: O(1), O(log n), O(n), O(n log n), O(n²).
+- El experimento de duplicación: estimar la complejidad midiendo.
+- Por qué los microbenchmarks mienten, y cómo detectarlo.
+objetivos:
+- Tener un `Complejometro` que imprime "≈ O(n^1.0)" midiendo una función.
+- Predecir y después medir la complejidad de 5 operaciones.
+- Bajar una función del tracker de O(n²) a O(n), con la prueba.
+tracker: `diasPerfectos` optimizado con un índice por día.
+
+--- construir
+titulo: El Complejómetro
+objetivo: Construir una herramienta que estime el exponente de complejidad de cualquier operación duplicando n y midiendo.
+reto:
+Si un código tarda t(n) y es O(n^k), al duplicar n el tiempo se multiplica por 2^k. Así que **k = log₂(t(2n) / t(n))**. Vas a construir una herramienta que lo calcule sola.
+
+```java
+public interface Experimento<D> {
+    D preparar(int n);        // crea los datos (NO se mide)
+    void ejecutar(D datos);   // la operación (SÍ se mide)
+}
+
+public static <D> void analizar(String nombre, Experimento<D> e, int nInicial, int pasos)
+```
+
+Para n = nInicial, 2·nInicial, 4·nInicial… (`pasos` veces): prepara, mide `ejecutar` con calentamiento y mediana (reutiliza la lógica de `Bench`) e imprime:
+
+```
+n        tiempo (ms)   ratio   k
+10000    1.204         -       -
+20000    2.391         1.99    0.99
+40000    4.870         2.04    1.03
+≈ O(n^1.0)
+```
+hecho:
+- Con un bucle que suma n números sale k ≈ 1.
+- Con dos bucles anidados de n sale k ≈ 2.
+- La estimación final usa la media de las k de los últimos pasos.
+minima:
+Sin la interfaz genérica: un `for` que duplica n, mide con `nanoTime` un bucle anidado e imprime el ratio.
+pista1:
+`k = Math.log(ratio) / Math.log(2)`. Si el ratio es ≈ 1 → O(1); ≈ 2 → O(n); ≈ 2,2 → O(n log n); ≈ 4 → O(n²); ≈ 8 → O(n³).
+pista2:
+Los tiempos por debajo de ~1 ms son casi puro ruido. Si te salen muy pequeños, sube `nInicial` o haz que `ejecutar` repita la operación m veces. Descarta el primer paso al calcular la estimación: casi siempre incluye calentamiento del JIT.
+pista3:
+```java
+for (int p = 0, n = nInicial; p < pasos; p++, n *= 2) {
+    D datos = e.preparar(n);
+    for (int i = 0; i < 3; i++) e.ejecutar(datos); // calentamiento
+    long[] t = new long[5];
+    for (int i = 0; i < 5; i++) {
+        D copia = e.preparar(n); // por si ejecutar modifica los datos
+        long t0 = System.nanoTime();
+        e.ejecutar(copia);
+        t[i] = System.nanoTime() - t0;
+    }
+    Arrays.sort(t);
+    double ms = t[2] / 1e6;
+    // ratio con el paso anterior, k, imprimir...
+}
+```
+
+--- medir
+titulo: Predice, mide, compara
+objetivo: Escribir tu predicción de complejidad para 5 operaciones y verificarla con el Complejómetro.
+reto:
+Para cada operación, **escribe primero tu predicción** en la libreta y después mide:
+
+1. n llamadas a `MiLista.get(i)` con i aleatorio
+2. añadir n elementos al final de `MiLista`
+3. añadir n elementos con `add(0, x)` (al principio)
+4. `indexOf` de un elemento que no está, en una lista de n
+5. ¿Hay duplicados en una lista de n enteros?
+   - (a) dos bucles anidados comparando todos con todos
+   - (b) ordenar una copia con `Arrays.sort` y comparar vecinos
+
+Si una medición no coincide con tu predicción, no la descartes: investiga por qué (ruido, calentamiento, caché de la CPU…).
+hecho:
+- 6 predicciones y 6 mediciones en la libreta.
+- Al menos una sorpresa investigada y explicada.
+- Sabes por qué (b) gana a (a) para n grande y puede perder para n = 10.
+minima:
+Solo las operaciones 2 y 3.
+pista1:
+Esperado: 1 → k≈1 (n operaciones O(1)); 2 → k≈1; 3 → k≈2 (cada inserción desplaza todo); 4 → k≈1; 5a → k≈2; 5b → k≈1,1 (n log n).
+pista2:
+Si al crecer n el tiempo da un salto brusco que la complejidad no explica, probablemente los datos han dejado de caber en la caché de la CPU (L2/L3, unos pocos MB). A partir de ahí cada acceso va a la RAM, que es mucho más lenta. Big O no ve esto; tus mediciones sí.
+pista3:
+Para n pequeño mandan las constantes: ordenar tiene un coste fijo (crear la copia, preparar el algoritmo) que dos bucles sobre 10 elementos no tienen. Big O describe cómo crece el coste, no cuánto cuesta para un n concreto.
+
+--- aplicar
+titulo: Optimiza el informe lento
+objetivo: Reescribir una función del tracker de O(n²) a O(n) y demostrarlo con el Complejómetro.
+reto:
+Esta función cuenta los "días perfectos" (todos los hábitos cumplidos) en un rango de fechas:
+
+```java
+public static int diasPerfectos(List<Registro> registros, List<Habito> habitos,
+                                LocalDate desde, LocalDate hasta) {
+    int perfectos = 0;
+    for (LocalDate dia = desde; !dia.isAfter(hasta); dia = dia.plusDays(1)) {
+        boolean todos = true;
+        for (Habito h : habitos) {
+            boolean hecho = false;
+            for (Registro r : registros) // recorre TODOS los registros
+                if (r.habitoId().equals(h.id()) && r.fecha().equals(dia) && r.valor() > 0)
+                    hecho = true;
+            if (!hecho) todos = false;
+        }
+        if (todos) perfectos++;
+    }
+    return perfectos;
+}
+```
+
+1. Calcula su complejidad en función de d (días), h (hábitos) y r (registros).
+2. Reescríbela para recorrer los registros **una sola vez**, guardándolos en un array indexado por el número de días desde `desde`.
+3. Comprueba con `Check` que las dos versiones dan el mismo resultado con datos aleatorios (semilla 42).
+4. Demuéstralo con el Complejómetro, haciendo crecer el número de días del rango (y los registros con él).
+hecho:
+- Las dos versiones devuelven lo mismo con 3 conjuntos de datos distintos.
+- El Complejómetro da k≈2 para la vieja y k≈1 para la nueva.
+- Sabes explicar el truco: has cambiado tiempo por memoria.
+minima:
+Los pasos 1 y 2, comprobando con un solo conjunto de datos.
+pista1:
+La original es O(d · h · r). Como r crece con d (más días, más registros), en la práctica es cuadrática en el número de días.
+pista2:
+El índice de un registro: `int i = (int) ChronoUnit.DAYS.between(desde, r.fecha());`. Crea `boolean[][] hecho = new boolean[dias][habitos.size()]` y un mapa del id del hábito a su posición (un bucle de búsqueda vale: hay pocos hábitos). Recorre los registros una vez marcando `hecho[i][posHabito] = true`, y después cuenta las filas con todo a true.
+pista3:
+Acabas de inventar una tabla hash muy simple: una función (días desde el inicio) que convierte la clave (la fecha) en una posición de un array, para encontrarla en O(1) sin buscar. En la semana 8 la generalizas a cualquier clave.
+
+--- explica
+reto:
+¿Qué significa realmente que algo sea O(n)? Explica por qué un algoritmo O(n) puede ser más lento que uno O(n²) para n pequeño, y cómo tu Complejómetro detecta la complejidad sin mirar el código.
+guia:
+- Big O habla de cómo crece el coste, no de cuánto cuesta.
+- El experimento de duplicación y la fórmula del exponente.
+- Constantes, caché y calentamiento: lo que Big O ignora.
+- Tu ejemplo de días perfectos: antes y después.
+
+=== SEMANA 06
+bloque: 2
+titulo: Listas enlazadas y nodos
+resumen: Construyes una estructura hecha de objetos que se apuntan unos a otros. Y descubres con tus números por qué, en la práctica, casi nunca gana a tu MiLista.
+sabes:
+- Qué es una referencia (semana 1).
+- Tu `MiLista` y los genéricos.
+nuevo:
+- Nodos enlazados: listas simples y dobles.
+- `Iterator` e `Iterable`: que tu estructura funcione con for-each.
+- Localidad de caché: por qué la memoria contigua es tan rápida.
+- Referencias a nodos ("resguardos") para borrar en O(1).
+objetivos:
+- Tener una `MiListaEnlazada<T>` doble que funcione en un for-each.
+- Medir cuándo gana y cuándo pierde frente a `MiLista`.
+- Borrar un elemento cualquiera en O(1) teniendo su nodo.
+tracker: `FeedActividad`: historial de acciones con deshacer selectivo.
+
+--- construir
+titulo: MiListaEnlazada<T>
+objetivo: Implementar una lista doblemente enlazada genérica que se pueda recorrer con for-each.
+reto:
+Crea `estructuras.MiListaEnlazada<T> implements Iterable<T>`:
+
+```java
+private static final class Nodo<T> {
+    T valor; Nodo<T> ant, sig;
+}
+private Nodo<T> cabeza, cola;
+private int tamano;
+```
+
+Métodos:
+
+- `addFirst(T)` y `addLast(T)`
+- `removeFirst()` y `removeLast()` (lanzan `NoSuchElementException` si está vacía)
+- `get(int i)`, con una **optimización**: si i está en la segunda mitad, recorre desde la cola hacia atrás
+- `size()` e `iterator()`
+
+Checks: lista vacía, un solo elemento (el caso que más bugs da), varios elementos, y un `for (T x : lista)` que recorra en orden.
+hecho:
+- Añadir y quitar por los dos extremos funciona, incluido pasar de 1 elemento a 0 y volver a 1.
+- `for (String s : lista)` recorre en orden.
+- `get` recorre desde el extremo más cercano (compruébalo contando pasos o con un print temporal).
+minima:
+Lista simple (solo `sig`): `addFirst`, `addLast`, `get` y `size`.
+pista1:
+Dibújalo en papel antes de programar: cajas con flechas. Casi todos los bugs están en dos casos: la lista vacía (cabeza y cola son null) y la lista de un elemento (cabeza y cola son el mismo nodo).
+pista2:
+```java
+public T removeLast() {
+    if (cola == null) throw new NoSuchElementException();
+    T v = cola.valor;
+    cola = cola.ant;
+    if (cola == null) cabeza = null;  // se ha quedado vacía
+    else cola.sig = null;
+    tamano--;
+    return v;
+}
+```
+pista3:
+El iterador es una clase interna que recuerda por dónde va:
+```java
+public Iterator<T> iterator() {
+    return new Iterator<>() {
+        Nodo<T> actual = cabeza;
+        public boolean hasNext() { return actual != null; }
+        public T next() {
+            if (actual == null) throw new NoSuchElementException();
+            T v = actual.valor;
+            actual = actual.sig;
+            return v;
+        }
+    };
+}
+```
+
+--- medir
+titulo: LinkedList está sobrevalorada
+objetivo: Medir cuándo gana de verdad una lista enlazada y descubrir el efecto de la caché de la CPU.
+reto:
+Con `Bench` o el Complejómetro, compara `MiListaEnlazada` con `MiLista` (y, si quieres, `LinkedList` con `ArrayList`):
+
+1. **Insertar al principio** 100 000 elementos (`addFirst` frente a `add(0, x)`).
+2. **Recorrer y sumar** 1 000 000 de enteros (for-each en las dos).
+3. **Acceso en medio**: 1 000 llamadas a `get(n / 2)` con n = 100 000.
+4. **Memoria por elemento**: mídela con `Runtime`, como en la semana 1.
+
+Antes de medir, apunta tu predicción para cada una. El punto 2 es el importante: las dos son O(n). ¿Tardan lo mismo?
+hecho:
+- 4 resultados con su predicción en la libreta.
+- Sabes cuántas veces más lento es recorrer la enlazada, aunque las dos sean O(n).
+- Tienes los bytes por elemento de las dos.
+minima:
+Solo los puntos 1 y 2.
+pista1:
+Esperado: en el 1 gana con mucho la enlazada (O(1) frente a O(n) por inserción). En el 3 gana con mucho `MiLista` (O(1) frente a O(n)).
+pista2:
+En el 2 las dos son O(n), pero el array suele ir varias veces más rápido. Los elementos de un array están contiguos en memoria: la CPU carga bloques de 64 bytes (líneas de caché) y adivina lo siguiente que vas a leer. Los nodos están desperdigados por el heap y cada salto puede ser un fallo de caché.
+pista3:
+Memoria: cada nodo es un objeto con cabecera (12 bytes) + 3 referencias (valor, ant, sig: 12 bytes) = 24 bytes, más el `Integer` (16). Unos 40 bytes por elemento frente a los ~20 de `MiLista<Integer>` (4 de la referencia + 16 del `Integer`). Conclusión típica: la enlazada solo gana si insertas o borras en los extremos, o si **ya tienes el nodo**.
+
+--- aplicar
+titulo: Feed de actividad con deshacer selectivo
+objetivo: Usar la única ventaja real de la lista enlazada (borrar en O(1) teniendo el nodo) en una funcionalidad del tracker.
+reto:
+El tracker guarda un feed de acciones ("marcado gym 07/12", "desmarcado dientes 08/12"…). Las más recientes van delante, y puedes **deshacer cualquier acción concreta**, no solo la última.
+
+1. Añade a `MiListaEnlazada` dos métodos que expongan el nodo como "resguardo":
+
+```java
+public Object addFirstConResguardo(T valor) // devuelve el nodo, como Object opaco
+public T eliminar(Object resguardo)         // lo quita en O(1)
+```
+
+2. Crea `tracker.FeedActividad` con:
+   - `registrar(String accion)`, que devuelve un id numérico (0, 1, 2…)
+   - `deshacer(int id)`, que quita esa acción del feed en O(1)
+   - `ultimas(int k)`, que devuelve las k más recientes
+
+Guarda los resguardos en una `MiLista<Object>` donde la posición es el id (combinas las semanas 4 y 6).
+hecho:
+- Registras 5 acciones, deshaces la 2 y ves las 4 restantes en orden (con checks).
+- `deshacer` no recorre la lista (no hay bucles dentro).
+- Deshacer dos veces el mismo id no rompe nada.
+minima:
+Solo `registrar` y `ultimas` (sin deshacer).
+pista1:
+Devuelves el `Nodo` como `Object` para no exponer tu clase interna: quien lo recibe solo puede devolvértelo. Dentro de `eliminar` haces el cast a `Nodo<T>`.
+pista2:
+Eliminar un nodo de una lista doble tiene 4 casos: tiene anterior o no (si no, es la cabeza), y tiene siguiente o no (si no, es la cola). `if (n.ant != null) n.ant.sig = n.sig; else cabeza = n.sig;` y lo mismo al revés.
+pista3:
+Para que deshacer dos veces no rompa nada: tras eliminar, haz `resguardos.set(id, null)` y, en `deshacer`, si el resguardo es null, no hagas nada. Esta combinación (de id a nodo + lista enlazada) es exactamente la base de una caché LRU, que montarás en la semana 8.
+
+--- explica
+reto:
+Si insertar en una lista enlazada es O(1), ¿por qué `ArrayList` gana casi siempre en la práctica? Explícalo con tus números.
+guia:
+- O(1) para insertar, pero ¿cuánto cuesta llegar a la posición?
+- La memoria por elemento (tus bytes).
+- La caché de la CPU y la memoria contigua.
+- El único caso en que la enlazada gana claramente (tu feed de actividad).
+
+=== SEMANA 07
+bloque: 2
+titulo: Pilas y colas
+resumen: Dos contratos sencillos (el último que entra sale primero; el primero que entra sale primero) que aparecen en todas partes: deshacer, la pila de llamadas, las colas de mensajes. Construyes la cola circular, la pieza que usa ArrayDeque por dentro.
+sabes:
+- `MiLista` y `MiListaEnlazada`.
+- El operador módulo `%`.
+- Interfaces (semana 2).
+nuevo:
+- LIFO y FIFO como contratos (interfaces).
+- Buffer circular: una cola sobre un array que nunca mueve elementos.
+- Por qué la documentación de Java dice que no uses `Stack`.
+objetivos:
+- Tener `PilaArray<T>` y `ColaCircular<T>` funcionando con sus checks.
+- Medir una cola circular frente a una cola ingenua que desplaza elementos.
+- Añadir deshacer y rehacer al tracker con dos pilas.
+tracker: `Historial` con deshacer y rehacer de acciones.
+
+--- construir
+titulo: Pila y cola circular
+objetivo: Implementar una pila sobre array y una cola circular que crece sin perder el orden.
+reto:
+Define los contratos:
+
+```java
+public interface Pila<T> { void push(T x); T pop(); T peek(); boolean isEmpty(); int size(); }
+public interface Cola<T> { void offer(T x); T poll(); T peek(); boolean isEmpty(); int size(); }
+```
+
+- `PilaArray<T>`: sobre un array que crece ×2. `pop` con la pila vacía lanza `NoSuchElementException`.
+- `ColaCircular<T>`: array con `cabeza` (índice del primero) y `tamano`. Las posiciones dan la vuelta con `%`. `poll` con la cola vacía devuelve `null` (como `java.util.Queue`). Cuando se llena, crece ×2 **manteniendo el orden**.
+
+Checks clave para la cola: llénala, saca 3, mete 3 más (el final da la vuelta al principio del array) y fuerza el crecimiento en ese estado.
+hecho:
+- `PilaArray` devuelve los elementos en orden inverso al de entrada.
+- `ColaCircular` mantiene el orden FIFO después de dar la vuelta y de crecer.
+- `poll` no mueve ningún elemento (no hay `arraycopy` en `poll`).
+minima:
+Solo `PilaArray` (es tu `MiLista` con restricciones: unos 10 minutos).
+pista1:
+Imagina el array como la esfera de un reloj: después de la última posición viene la 0. `poll` no desplaza nada: solo avanza `cabeza`. La posición donde entra el siguiente es `(cabeza + tamano) % capacidad`.
+pista2:
+```java
+public void offer(T x) {
+    if (tamano == datos.length) crecer();
+    datos[(cabeza + tamano) % datos.length] = x;
+    tamano++;
+}
+public T poll() {
+    if (tamano == 0) return null;
+    T x = (T) datos[cabeza];
+    datos[cabeza] = null;
+    cabeza = (cabeza + 1) % datos.length;
+    tamano--;
+    return x;
+}
+```
+pista3:
+Al crecer no basta con `Arrays.copyOf`: si la cola ha dado la vuelta, el orden en el array no es el orden de la cola. Copia elemento a elemento, `nuevo[i] = datos[(cabeza + i) % datos.length]` para i de 0 a tamano - 1, y después `cabeza = 0`.
+
+--- medir
+titulo: La cola ingenua frente a la circular
+objetivo: Medir el coste de una cola que desplaza elementos frente a una circular, y comprobar por qué `Stack` es la opción equivocada.
+reto:
+1. **Cola ingenua:** una cola sobre `MiLista` donde `poll()` hace `remove(0)`. Con el Complejómetro: n `offer` seguidos de n `poll`, comparando la ingenua, `ColaCircular` y `ArrayDeque`.
+2. **Pila:** 10 millones de `push` y `pop` alternos con `java.util.Stack`, `ArrayDeque` y tu `PilaArray`.
+3. **Datamining:** abre el código fuente de `Stack` (Ctrl+clic en IntelliJ). ¿De qué clase hereda? ¿Qué palabra clave aparece en sus métodos?
+hecho:
+- La k de cada cola apuntada (deberías ver ≈2 frente a ≈1).
+- Los tiempos de las 3 pilas.
+- Sabes por qué la documentación de Java recomienda `ArrayDeque` en lugar de `Stack`.
+minima:
+Solo el punto 1, comparando ingenua y circular con n = 50 000.
+pista1:
+La ingenua es O(n) por cada `poll` (desplaza todo el array), así que n `poll` son O(n²). La circular es O(1) por operación.
+pista2:
+`Stack` hereda de `Vector`, una clase de Java 1.0 con todos los métodos `synchronized` (pensados para varios hilos). Aunque uses un solo hilo, pagas ese mecanismo en cada operación. Además, al heredar de `Vector` permite cosas que una pila no debería permitir, como `get(3)` o `add(0, x)`: un ejemplo clásico de herencia mal usada (semana 2).
+pista3:
+`ArrayDeque` es exactamente tu `ColaCircular` (un array circular), pero sirve como pila y como cola por los dos extremos. Si tus tiempos se parecen a los suyos, has construido lo mismo que la JDK.
+
+--- aplicar
+titulo: Deshacer y rehacer en el tracker
+objetivo: Implementar deshacer y rehacer con dos pilas usando objetos "comando".
+reto:
+1. Define la interfaz:
+
+```java
+public interface Comando {
+    void ejecutar();
+    void deshacer();
+    String descripcion();
+}
+```
+
+2. Implementa `MarcarHabito` y `DesmarcarHabito`, que actúan sobre una lista de registros del tracker.
+3. Crea `Historial` con dos `PilaArray<Comando>`:
+   - `hacer(Comando c)`: ejecuta, mete en la pila de deshacer y **vacía** la de rehacer.
+   - `deshacer()`: saca de deshacer, llama a `c.deshacer()` y mete en rehacer.
+   - `rehacer()`: lo contrario.
+4. Prueba esta secuencia con checks: marcar gym, marcar dientes, deshacer, deshacer, rehacer, marcar dormir, rehacer (este último no debe hacer nada).
+
+**Misión secundaria (opcional):** `validarParentesis(String s)` con una pila: `"{[()]}"` es válido y `"{[(])}"` no. Te servirá en la semana 15.
+hecho:
+- La secuencia del paso 4 deja exactamente los registros esperados.
+- Después de una acción nueva, rehacer no hace nada.
+- Deshacer con el historial vacío no lanza excepción (devuelve false o no hace nada).
+minima:
+Solo deshacer (una pila) con `MarcarHabito`.
+pista1:
+Cada comando guarda todo lo que necesita para deshacerse: `MarcarHabito` guarda el registro que añadió, y así su `deshacer()` sabe exactamente qué quitar.
+pista2:
+¿Por qué hay que vaciar rehacer al hacer algo nuevo? Porque la "línea temporal" ha cambiado: lo que habías deshecho ya no encaja después de la acción nueva. Es lo mismo que pasa en cualquier editor de texto.
+pista3:
+Para los paréntesis: recorre el texto; si el carácter es de apertura, `push`; si es de cierre, la pila no puede estar vacía y `pop()` debe ser su pareja. Al final, la pila tiene que quedar vacía.
+
+--- explica
+reto:
+¿Por qué el botón de deshacer usa una pila y una cola de impresión usa una cola? Explica también por qué un buffer circular nunca necesita mover elementos.
+guia:
+- LIFO frente a FIFO, con ejemplos de la vida real y de tu tracker.
+- Tu cola ingenua frente a la circular (tus números).
+- El "reloj" del buffer circular y el `%`.
+- Por qué `Stack` es un ejemplo de herencia mal usada.

@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Rotación</title>
+<meta name="description" content="Bootcamp de Java personal: construir, medir, aplicar y explicar.">
+<meta name="theme-color" content="#f1f1ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0e" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Plan: monocromo gris/negro. Mono (JetBrains Mono) para cifras, etiquetas y la marca; Instrument Sans para leer.
+   Layout: columna única de lectura (~760px) con cabecera fija; la hoja de personaje usa dos columnas. */
+:root {
+  --bg: #f1f1ef;
+  --surface: #fafaf9;
+  --ink: #131314;
+  --ink-2: #48484d;
+  --ink-3: #828288;
+  --line: #d6d6d3;
+  --fill: #e5e5e2;
+  --display: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0d0e;
+    --surface: #141416;
+    --ink: #ebebe8;
+    --ink-2: #a8a8ad;
+    --ink-3: #6e6e74;
+    --line: #2a2a2e;
+    --fill: #1e1e21;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0d0e;
+  --surface: #141416;
+  --ink: #ebebe8;
+  --ink-2: #a8a8ad;
+  --ink-3: #6e6e74;
+  --line: #2a2a2e;
+  --fill: #1e1e21;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+h1, h2, h3, h4 { text-wrap: balance; margin: 0; font-weight: 600; }
+code, pre, .mono { font-family: var(--display); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+button { font: inherit; color: inherit; }
+
+/* Cabecera */
+.cab {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.cab-in {
+  max-width: 1080px; margin: 0 auto; padding: 10px 20px;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.marca {
+  font-family: var(--display); font-weight: 700; font-size: 14px;
+  letter-spacing: 0.18em; text-transform: uppercase; text-decoration: none;
+  display: flex; align-items: center; gap: 10px;
+}
+.marca-ciclo { display: inline-flex; gap: 3px; }
+.marca-ciclo i { width: 7px; height: 7px; background: var(--ink); display: block; }
+.marca-ciclo i:nth-child(2) { opacity: .55; }
+.marca-ciclo i:nth-child(3) { opacity: .25; }
+.nav { display: flex; gap: 2px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.nav a {
+  font-family: var(--display); font-size: 12.5px; text-decoration: none;
+  padding: 6px 10px; color: var(--ink-2); white-space: nowrap; border-radius: 2px;
+}
+.nav a:hover { color: var(--ink); background: var(--fill); }
+.nav a[aria-current="page"] { color: var(--ink); background: var(--fill); }
+.cab-xp { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-size: 12px; color: var(--ink-2); text-decoration: none; }
+.cab-xp b { color: var(--ink); font-weight: 700; }
+.barra { height: 4px; background: var(--fill); position: relative; overflow: hidden; }
+.barra > i { position: absolute; inset: 0 auto 0 0; background: var(--ink); display: block; }
+.cab-xp .barra { width: 90px; }
+
+main { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+.col { max-width: 780px; }
+
+/* Utilidades */
+.etq {
+  font-family: var(--display); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3);
+}
+.muted { color: var(--ink-3); }
+.sub { color: var(--ink-2); }
+.tab { font-variant-numeric: tabular-nums; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--ink); color: var(--bg); border: 1px solid var(--ink);
+  padding: 9px 14px; border-radius: 2px; cursor: pointer; font-size: 14px; font-weight: 500;
+  text-decoration: none;
+}
+.btn:hover { opacity: .88; }
+.btn .xp { font-family: var(--display); font-size: 12px; opacity: .75; }
+.btn.sec { background: transparent; color: var(--ink); }
+.btn.sec:hover { background: var(--fill); opacity: 1; }
+.btn.fant { background: transparent; color: var(--ink-2); border-color: transparent; padding-left: 6px; padding-right: 6px; text-decoration: underline; text-underline-offset: 3px; }
+.btn.fant:hover { color: var(--ink); opacity: 1; }
+.btn[disabled] { opacity: .4; cursor: not-allowed; }
+
+/* Pips de estado: cuadrado vacío / medio / lleno */
+.pips { display: inline-flex; gap: 4px; align-items: center; }
+.pip { width: 10px; height: 10px; border: 1.5px solid var(--ink-3); display: inline-block; }
+.pip.full { background: var(--ink); border-color: var(--ink); }
+.pip.min { border-color: var(--ink); background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.pip.exp { border-radius: 50%; }
+.pip.sep { margin-left: 4px; }
+
+.rango { font-family: var(--display); font-size: 11px; letter-spacing: .08em; color: var(--ink-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 2px; white-space: nowrap; }
+.rango.r0 { color: var(--ink-3); border-style: dashed; }
+.rango.r3 { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* Ruta: portada */
+.portada { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px; margin-bottom: 36px; }
+.ficha, .siguiente, .reglas, .tarjeta { background: var(--surface); border: 1px solid var(--line); padding: 20px; border-radius: 2px; }
+.ficha { display: flex; flex-direction: column; gap: 14px; }
+.nivel { display: flex; align-items: flex-end; gap: 14px; }
+.nivel-num { font-family: var(--display); font-weight: 700; font-size: 76px; line-height: .85; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.nivel-txt { display: flex; flex-direction: column; gap: 2px; padding-bottom: 4px; }
+.nivel-txt strong { font-size: 18px; }
+.xp-linea { display: flex; justify-content: space-between; font-family: var(--display); font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+.ficha .barra { height: 6px; }
+.siguiente { display: flex; flex-direction: column; gap: 10px; }
+.siguiente h2 { font-size: 24px; line-height: 1.25; }
+.siguiente .acc { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.siguiente .minibox { border-left: 2px solid var(--line); padding: 2px 0 2px 12px; color: var(--ink-2); font-size: 14.5px; }
+.siguiente .minibox p { margin: 2px 0; }
+.aviso-inicio { font-size: 14.5px; color: var(--ink-2); border: 1px dashed var(--line); padding: 10px 12px; }
+
+.reglas { margin-bottom: 40px; }
+.mini-stats { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.mini-stats dt { font-family: var(--display); font-size: 12px; color: var(--ink-3); padding-top: 1px; }
+.mini-stats dd { margin: 0; text-align: right; font-family: var(--display); font-size: 13px; font-variant-numeric: tabular-nums; }
+.reglas ol { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 24px; counter-reset: r; }
+.reglas li { counter-increment: r; font-size: 14.5px; color: var(--ink-2); padding-left: 30px; position: relative; }
+.reglas li::before { content: counter(r, decimal-leading-zero); position: absolute; left: 0; top: 1px; font-family: var(--display); font-size: 12px; color: var(--ink-3); }
+.reglas li strong { color: var(--ink); }
+
+/* Ruta: bloques y semanas */
+.bloque { margin-bottom: 34px; }
+.bloque-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--ink); padding-bottom: 8px; margin-bottom: 4px; }
+.bloque-cab h2 { font-size: 20px; }
+.bloque-cab h2 .etq { margin-right: 10px; }
+.bloque-cab .prog { font-family: var(--display); font-size: 12px; color: var(--ink-2); }
+.fila {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; gap: 16px; align-items: center;
+  padding: 14px 8px; border-bottom: 1px solid var(--line); text-decoration: none;
+}
+.fila:hover { background: var(--fill); }
+.fila .num { font-family: var(--display); font-size: 13px; color: var(--ink-3); }
+.fila .tit { font-weight: 600; font-size: 16px; }
+.fila .res { color: var(--ink-3); font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.fila.actual .num { color: var(--ink); font-weight: 700; }
+.fila.actual .num::after { content: " ◂"; }
+.leyenda { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-3); margin: 6px 0 22px; align-items: center; }
+.leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Semana */
+.migas { display: flex; gap: 14px; align-items: center; font-family: var(--display); font-size: 12.5px; color: var(--ink-3); margin-bottom: 22px; flex-wrap: wrap; }
+.migas a { color: var(--ink-2); }
+.sem-cab { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 22px; margin-bottom: 26px; }
+.sem-num { font-family: var(--display); font-weight: 700; font-size: 56px; line-height: .9; letter-spacing: -0.04em; grid-row: span 3; }
+.sem-cab h1 { font-size: 32px; line-height: 1.15; }
+.sem-cab .resumen { color: var(--ink-2); margin: 4px 0 0; max-width: 65ch; }
+.sem-cab .estado { display: flex; gap: 12px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.ochenta { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); margin-bottom: 18px; background: var(--surface); }
+.ochenta > div { padding: 16px 18px; }
+.ochenta > div + div { border-left: 1px solid var(--line); }
+.ochenta h3 { font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+.ochenta h3 .mono { font-weight: 500; color: var(--ink-3); font-size: 12px; }
+.ochenta ul, .lista { margin: 0; padding-left: 18px; font-size: 14.5px; color: var(--ink-2); }
+.ochenta li + li, .lista li + li { margin-top: 4px; }
+.obj { margin-bottom: 18px; }
+.obj h3 { font-size: 14px; margin-bottom: 8px; }
+.checks { list-style: none; padding: 0; margin: 0; }
+.checks li { padding-left: 24px; position: relative; font-size: 15px; }
+.checks li + li { margin-top: 5px; }
+.checks li::before { content: ""; position: absolute; left: 2px; top: 6px; width: 10px; height: 10px; border: 1.5px solid var(--ink-3); }
+.pieza { display: flex; gap: 14px; align-items: baseline; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 0; margin-bottom: 22px; font-size: 15px; }
+.pieza .etq { flex: none; }
+.saltos { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 26px; position: sticky; top: 53px; z-index: 5; background: var(--bg); padding: 8px 0; }
+.saltos a { font-family: var(--display); font-size: 12px; text-decoration: none; border: 1px solid var(--line); padding: 5px 10px; border-radius: 2px; display: inline-flex; gap: 8px; align-items: center; background: var(--surface); }
+.saltos a:hover { border-color: var(--ink); }
+
+.sesion { background: var(--surface); border: 1px solid var(--line); border-radius: 2px; margin-bottom: 22px; scroll-margin-top: 110px; }
+.sesion > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.paso { font-family: var(--display); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; }
+.paso .muted { font-weight: 400; }
+.pill { font-family: var(--display); font-size: 11.5px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 2px; color: var(--ink-3); white-space: nowrap; }
+.pill.ok { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.pill.min { border-color: var(--ink); color: var(--ink); }
+.sesion .cuerpo { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+.sesion h2 { font-size: 22px; line-height: 1.25; }
+.objetivo { margin: -8px 0 0; color: var(--ink-2); }
+.objetivo .etq { margin-right: 8px; }
+.prose { max-width: 70ch; }
+.prose p { margin: 0 0 10px; }
+.prose p:last-child { margin-bottom: 0; }
+.prose ul, .prose ol { margin: 0 0 10px; padding-left: 22px; }
+.prose li + li { margin-top: 4px; }
+.prose li > ul { margin: 4px 0 0; }
+code { font-size: .86em; background: var(--fill); padding: 1px 5px; border-radius: 2px; }
+pre { background: var(--fill); padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; margin: 0 0 12px; border-left: 2px solid var(--ink); }
+pre code { background: none; padding: 0; font-size: inherit; }
+.bloque-sec h4 { font-size: 13px; margin-bottom: 8px; font-family: var(--display); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.minima { border: 1px dashed var(--ink-3); padding: 14px 16px; }
+.minima h4 { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pistas .regla { font-size: 13.5px; color: var(--ink-3); margin: -2px 0 10px; }
+.pista { border-top: 1px solid var(--line); }
+.pista:last-child { border-bottom: 1px solid var(--line); }
+.pista-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; background: none; border: 0; padding: 10px 2px; cursor: pointer; text-align: left; font-family: var(--display); font-size: 13px; }
+.pista-btn:hover:not([disabled]) { background: var(--fill); }
+.pista-btn[disabled] { cursor: not-allowed; color: var(--ink-3); }
+.pista-cont { padding: 4px 2px 14px; }
+.acciones { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 14px 20px; border-top: 1px solid var(--line); }
+.acciones .hecha { font-family: var(--display); font-size: 13px; }
+textarea, input[type="text"] {
+  width: 100%; font: inherit; font-size: 15px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 2px; padding: 10px 12px; resize: vertical;
+}
+textarea:focus, input[type="text"]:focus { border-color: var(--ink); outline: none; }
+textarea.mono { font-family: var(--display); font-size: 13px; }
+label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+label .muted { font-weight: 400; }
+.campos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.campos .ancho { grid-column: 1 / -1; }
+.lib-estado { font-family: var(--display); font-size: 12px; color: var(--ink-3); }
+.lib-estado.ok { color: var(--ink); }
+.sem-nav { display: flex; justify-content: space-between; gap: 16px; margin-top: 28px; }
+.sem-nav a { text-decoration: none; display: flex; flex-direction: column; gap: 2px; max-width: 46%; }
+.sem-nav a:last-child { text-align: right; margin-left: auto; }
+.sem-nav a span:last-child { font-weight: 600; }
+
+/* Hoja de personaje */
+.hoja { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.hoja .ancho { grid-column: 1 / -1; }
+.identidad { display: flex; flex-direction: column; gap: 12px; }
+.identidad .nombre { font-size: 26px; font-weight: 600; }
+.ident-linea { display: grid; grid-template-columns: 120px 1fr; font-size: 14px; gap: 4px 12px; }
+.ident-linea dt { color: var(--ink-3); font-family: var(--display); font-size: 12px; padding-top: 2px; }
+.ident-linea dd { margin: 0; }
+.attr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; align-items: baseline; }
+.attr + .attr { margin-top: 14px; }
+.attr .n { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.attr .n span:first-child { white-space: nowrap; font-weight: 500; }
+.attr .n .puntos { flex: 1; border-bottom: 1px dotted var(--ink-3); transform: translateY(-4px); min-width: 20px; }
+.attr .v { font-family: var(--display); font-size: 13px; font-variant-numeric: tabular-nums; }
+.attr .barra { grid-column: 1 / -1; height: 5px; }
+.attr small { grid-column: 1 / -1; color: var(--ink-3); font-size: 12.5px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.stats div { background: var(--surface); padding: 12px 14px; }
+.stats b { display: block; font-family: var(--display); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stats span { font-size: 12.5px; color: var(--ink-3); }
+.calor { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+.calor i { width: 12px; height: 12px; background: var(--fill); display: block; }
+.calor i.c1 { background: var(--ink); opacity: .35; }
+.calor i.c2 { background: var(--ink); opacity: .65; }
+.calor i.c3 { background: var(--ink); }
+.calor i.fut { background: transparent; }
+.arbol { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 28px; }
+.arbol h4 { font-size: 13px; font-family: var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 8px; }
+.hab { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; text-decoration: none; }
+.hab:hover { background: var(--fill); }
+.hab.r0 { color: var(--ink-3); }
+.rpips { display: inline-flex; gap: 3px; }
+.rpips i { width: 8px; height: 8px; border: 1.5px solid var(--ink-3); display: block; }
+.rpips i.on { background: var(--ink); border-color: var(--ink); }
+
+/* Logros */
+.logros { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.logro { border: 1px solid var(--line); background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; border-radius: 2px; }
+.logro.bloq { background: transparent; border-style: dashed; }
+.logro.bloq h3 { color: var(--ink-2); }
+.logro h3 { font-size: 16px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.logro h3 .mono { font-size: 12px; font-weight: 500; color: var(--ink-3); white-space: nowrap; }
+.logro p { margin: 0; font-size: 14px; color: var(--ink-2); }
+.logro .fecha { font-family: var(--display); font-size: 11.5px; color: var(--ink-3); }
+.logro.ok { border-color: var(--ink); }
+.logro.ok .sello { display: inline-block; width: 10px; height: 10px; background: var(--ink); margin-right: 8px; }
+
+/* Libreta y ajustes */
+.lib-sem { border-top: 1px solid var(--ink); padding: 18px 0 26px; }
+.lib-sem h2 { font-size: 19px; margin-bottom: 14px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.lib-sem h2 a { text-decoration: none; }
+.lib-sem h2 .mono { color: var(--ink-3); font-size: 14px; }
+.herr { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0 26px; }
+.interruptor { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.ajuste { padding: 20px 0; border-top: 1px solid var(--line); }
+.ajuste h2 { font-size: 18px; margin-bottom: 6px; }
+.ajuste p { margin: 0 0 12px; color: var(--ink-2); max-width: 65ch; }
+.estado-almacen { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 12px; color: var(--ink-2); }
+.estado-almacen i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); display: block; }
+.estado-almacen.nube i { background: var(--ink); }
+.recordatorio { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px dashed var(--ink-3); padding: 12px 16px; margin: -16px 0 20px; font-size: 14.5px; color: var(--ink-2); }
+.recordatorio strong { color: var(--ink); }
+
+.titulo-vista { font-size: 30px; margin-bottom: 6px; }
+.intro-vista { color: var(--ink-2); margin: 0 0 24px; max-width: 65ch; }
+footer.pie { max-width: 1080px; margin: 0 auto; padding: 0 20px 40px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--ink-3); font-size: 12.5px; }
+
+/* Avisos */
+.avisos { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; max-width: min(360px, calc(100vw - 32px)); }
+.aviso { background: var(--ink); color: var(--bg); padding: 12px 14px; border-radius: 2px; font-size: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.18); display: flex; gap: 12px; align-items: baseline; animation: entra .25s ease-out; }
+.aviso .mono { font-size: 12px; opacity: .7; white-space: nowrap; }
+.aviso.nivel { font-size: 15px; }
+.aviso.nivel b { font-family: var(--display); font-size: 20px; }
+@keyframes entra { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .aviso { animation: none; } }
+
+@media (max-width: 760px) {
+  .portada, .hoja, .ochenta, .campos { grid-template-columns: minmax(0, 1fr); }
+  .ochenta > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .fila { grid-template-columns: 40px minmax(0, 1fr); gap: 4px 12px; }
+  .fila .pips, .fila .rango { grid-column: 2; justify-self: start; }
+  .sem-num { font-size: 40px; grid-row: auto; }
+  .sem-cab { grid-template-columns: minmax(0, 1fr); }
+  .sem-cab h1 { font-size: 26px; }
+  .cab-xp .barra { width: 50px; }
+  .nivel-num { font-size: 60px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cab-in { gap: 8px 16px; }
+  .marca { flex: 1; }
+  .nav { order: 3; flex-basis: 100%; margin: 0 -10px; }
+  .saltos { position: static; }
+  .sesion { scroll-margin-top: 110px; }
+}
+</style>
+</head>
+<body>
+<header class="cab">
+  <div class="cab-in">
+    <a class="marca" href="#ruta" aria-label="La Rotación, inicio"><span class="marca-ciclo" aria-hidden="true"><i></i><i></i><i></i></span>La Rotación</a>
+    <nav class="nav" id="nav" aria-label="Secciones">
+      <a href="#ruta" data-vista="ruta">Ruta</a>
+      <a href="#hoja" data-vista="hoja">Hoja de personaje</a>
+      <a href="#logros" data-vista="logros">Logros</a>
+      <a href="#libreta" data-vista="libreta">Libreta</a>
+      <a href="#ajustes" data-vista="ajustes">Guardado</a>
+    </nav>
+    <a class="cab-xp" href="#hoja" id="cab-xp"></a>
+  </div>
+</header>
+<main id="app"></main>
+<footer class="pie">
+  <span class="estado-almacen" id="estado-almacen"><i></i><span>Cargando…</span></span>
+  <span>Construir · Medir · Aplicar · Explicar</span>
+</footer>
+<div class="avisos" id="avisos" aria-live="polite"></div>
+
+<script>
+const TEMARIO = /*__TEMARIO__*/[];
+
+/* ───────────────────────── Datos fijos ───────────────────────── */
+const SEMANAS = TEMARIO.map(w => ({ ...w, id: String(w.n).padStart(2, '0'), opcional: !!w.opcional }));
+const POR_ID = Object.fromEntries(SEMANAS.map(w => [w.id, w]));
+const NUCLEO = SEMANAS.filter(w => !w.opcional);
+const TIPOS = ['construir', 'medir', 'aplicar'];
+const NOMBRE_TIPO = { construir: 'Construir', medir: 'Medir', aplicar: 'Aplicar', explica: 'Explícalo' };
+const XP = { completa: 100, minima: 50, explica: 75, libreta: 25, rotacion: 100 };
+const BLOQUES = {
+  0: { nombre: 'Tutorial', sub: 'Tus herramientas' },
+  1: { nombre: 'Fundamentos', sub: 'El porqué de la POO' },
+  2: { nombre: 'Estructuras de datos', sub: 'Y cómo demostrar cuál es más rápida' },
+  3: { nombre: 'Diseño y persistencia', sub: 'Patrones con datos' },
+  4: { nombre: 'API REST en Java puro', sub: 'Del socket al tracker v1.0' },
+  5: { nombre: 'Extra opcional', sub: 'Microservicios' }
+};
+const TITULOS = [[1, 'Aprendiz'], [3, 'Iniciado'], [5, 'Artesano'], [7, 'Constructor'], [9, 'Analista'], [11, 'Ingeniero'], [13, 'Arquitecto'], [15, 'Maestro'], [17, 'Leyenda']];
+const CAMPOS_LIB = [
+  { k: 'nosabia', t: 'Qué no sabía', ph: 'Lo que descubrí que no sabía (aunque creyera que sí).' },
+  { k: 'aprendi', t: 'Qué he aprendido', ph: 'Lo que ahora podría explicar sin mirar.' },
+  { k: 'pendiente', t: 'Qué me queda por estudiar', ph: 'Dudas abiertas, cosas a repasar, curiosidades para otro día.' },
+  { k: 'numeros', t: 'Mis números', ph: 'n=20000  +=  43.9 ms   StringBuilder  0.8 ms', mono: true }
+];
+const LOGROS = [
+  { id: 'primer-paso', nombre: 'Primer paso', desc: 'Completa tu primera sesión, en cualquier versión.', xp: 50 },
+  { id: 'dias-flojos', nombre: 'Los días flojos también cuentan', desc: 'Completa una sesión en su versión mínima.', xp: 50 },
+  { id: 'mejora', nombre: 'Mejora de equipo', desc: 'Convierte una sesión mínima en completa.', xp: 75 },
+  { id: 'el-regreso', nombre: 'El regreso', desc: 'Completa una sesión después de 7 días o más sin actividad. Volver es lo que cuenta.', xp: 100 },
+  { id: 'tutorial', nombre: 'Banco de pruebas', desc: 'Termina la semana 0: tus herramientas están listas.', xp: 100 },
+  { id: 'rotacion-perfecta', nombre: 'Rotación perfecta', desc: 'Completa Construir, Medir y Aplicar de una semana en su versión completa.', xp: 100 },
+  { id: 'primeros-numeros', nombre: 'Primeros números', desc: 'Apunta tus mediciones en «Mis números» de una semana.', xp: 50 },
+  { id: 'analista', nombre: 'Analista', desc: 'Apunta tus mediciones en 5 semanas distintas.', xp: 150 },
+  { id: 'escriba', nombre: 'Libreta de ingeniería', desc: 'Rellena las tres secciones de la libreta en 5 semanas.', xp: 150 },
+  { id: 'profesor', nombre: 'Profesor', desc: 'Completa 5 retos de «explícalo».', xp: 150 },
+  { id: 'catedra', nombre: 'Cátedra', desc: 'Completa todos los «explícalo» del bootcamp principal (semanas 0 a 16).', xp: 300 },
+  { id: 'puntos-debiles', nombre: 'Puntos débiles, superados', desc: 'Termina las semanas de genéricos (3) y recursión (9).', xp: 150 },
+  { id: 'bloque-1', nombre: 'Fundamentos', desc: 'Termina el bloque 1 (semanas 1 a 3).', xp: 150 },
+  { id: 'bloque-2', nombre: 'Estructuras', desc: 'Termina el bloque 2 (semanas 4 a 10).', xp: 250 },
+  { id: 'bloque-3', nombre: 'Diseño', desc: 'Termina el bloque 3 (semanas 11 y 12).', xp: 150 },
+  { id: 'bloque-4', nombre: 'Tracker v1.0', desc: 'Termina el bloque 4: tu API REST en Java puro funciona.', xp: 300 },
+  { id: 'ritmo', nombre: 'Ritmo', desc: 'Ten actividad en 4 semanas del calendario distintas. No hace falta que sean seguidas.', xp: 100 },
+  { id: 'habito', nombre: 'Hábito de programar', desc: 'Ten actividad en 12 semanas del calendario distintas.', xp: 200 },
+  { id: 'ecuador', nombre: 'Ecuador', desc: 'Completa la mitad de las sesiones del bootcamp principal.', xp: 150 },
+  { id: 'completo', nombre: '100 %', desc: 'Completa todas las sesiones del bootcamp principal en su versión completa.', xp: 500 },
+  { id: 'distribuido', nombre: 'Arquitecto distribuido', desc: 'Termina la semana opcional de microservicios.', xp: 200 }
+];
+const LOGRO = Object.fromEntries(LOGROS.map(l => [l.id, l]));
+
+/* ───────────────────────── Estado ───────────────────────── */
+const estadoVacio = () => ({ v: 1, nombre: '', sesiones: {}, explica: {}, pistas: {}, logros: {}, actividad: {}, actualizado: 0 });
+let E = estadoVacio();   // progreso
+let L = {};              // libreta: { "04": {nosabia, aprendi, pendiente, numeros, explicacion, actualizado} }
+
+/* ───────────────────────── Utilidades ───────────────────────── */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+function isoLocal(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function hoy() { return isoLocal(new Date()); }
+function aFecha(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
+function diasEntre(a, b) { return Math.round((aFecha(b) - aFecha(a)) / 86400000); }
+function lunesDe(iso) { const d = aFecha(iso); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return isoLocal(d); }
+const FMT = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short' });
+const FMT_AN = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+function fmtFecha(iso) { if (!iso) return ''; const d = aFecha(iso); return (d.getFullYear() === new Date().getFullYear() ? FMT : FMT_AN).format(d).replace('.', ''); }
+const nf = new Intl.NumberFormat('es-ES');
+const enClaude = () => !!(window.claude && typeof window.claude.use === 'function');
+function diasDesde(ms) { return Math.floor((Date.now() - ms) / 86400000); }
+function textoUltimaCopia() {
+  if (!E.ultimaCopia) return 'nunca';
+  const d = diasDesde(E.ultimaCopia);
+  return d === 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`;
+}
+function necesitaCopia() {
+  if (Almacen.modo === 'nube' || Object.keys(E.sesiones).length === 0) return false;
+  if (E.ultimaCopia) return diasDesde(E.ultimaCopia) >= 14;
+  const primera = Object.keys(E.actividad).sort()[0];
+  return !!primera && diasEntre(primera, hoy()) >= 7;   // sin copias: avisa a partir de la primera semana
+}
+function descargar(nombre, texto, tipo) {
+  const url = URL.createObjectURL(new Blob([texto], { type: tipo }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/* ───────────────────────── Reglas del juego ───────────────────────── */
+const sid = (w, t) => `${w}-${t}`;
+const ses = (w, t) => E.sesiones[sid(w, t)];
+function hechasSemana(id) { return TIPOS.filter(t => ses(id, t)).length; }
+function semanaTerminada(id) { return hechasSemana(id) === 3; }
+function semanaCompleta(id) { return TIPOS.every(t => ses(id, t)?.modo === 'completa'); }
+function libretaCompleta(id) { const n = L[id]; return !!n && ['nosabia', 'aprendi', 'pendiente'].every(k => (n[k] || '').trim().length > 0); }
+function rangoSemana(id) {
+  if (!semanaTerminada(id)) return 0;
+  if (!semanaCompleta(id)) return 1;
+  if (E.explica[id] && libretaCompleta(id)) return 3;
+  return 2;
+}
+function bonusRotacion(id) { return semanaCompleta(id) && !!E.explica[id]; }
+
+function xpTotal() {
+  let xp = 0;
+  for (const s of Object.values(E.sesiones)) xp += s.modo === 'completa' ? XP.completa : XP.minima;
+  xp += Object.keys(E.explica).length * XP.explica;
+  for (const w of SEMANAS) {
+    if (libretaCompleta(w.id)) xp += XP.libreta;
+    if (bonusRotacion(w.id)) xp += XP.rotacion;
+  }
+  for (const id of Object.keys(E.logros)) xp += LOGRO[id]?.xp || 0;
+  return xp;
+}
+const xpNivel = n => 50 * (n - 1) * n;   // XP acumulada para alcanzar el nivel n
+function nivelDe(xp) { let n = 1; while (xpNivel(n + 1) <= xp) n++; return n; }
+function tituloDe(n) { let t = TITULOS[0][1]; for (const [min, nom] of TITULOS) if (n >= min) t = nom; return t; }
+
+function siguienteSesion() {
+  const orden = [...NUCLEO, ...SEMANAS.filter(w => w.opcional)];
+  for (const w of orden) {
+    for (const t of TIPOS) if (!ses(w.id, t)) return { w, t };
+    if (!E.explica[w.id]) return { w, t: 'explica' };
+  }
+  return null;
+}
+function semanaActual() { const s = siguienteSesion(); return s ? s.w.id : null; }
+function ultimaActividad() { const ks = Object.keys(E.actividad).sort(); return ks.length ? ks[ks.length - 1] : null; }
+function registrarActividad() { const d = hoy(); E.actividad[d] = (E.actividad[d] || 0) + 1; }
+function semanasActivas() { return new Set(Object.keys(E.actividad).map(lunesDe)).size; }
+
+function evaluarLogros(ctx = {}) {
+  const nuevos = [];
+  const des = id => { if (!E.logros[id]) { E.logros[id] = hoy(); nuevos.push(id); } };
+  const todas = Object.values(E.sesiones);
+  if (todas.length >= 1) des('primer-paso');
+  if (todas.some(s => s.modo === 'minima')) des('dias-flojos');
+  if (ctx.mejora) des('mejora');
+  if (ctx.regreso) des('el-regreso');
+  if (semanaTerminada('00')) des('tutorial');
+  if (SEMANAS.some(w => semanaCompleta(w.id))) des('rotacion-perfecta');
+  const conNumeros = SEMANAS.filter(w => (L[w.id]?.numeros || '').trim()).length;
+  if (conNumeros >= 1) des('primeros-numeros');
+  if (conNumeros >= 5) des('analista');
+  if (SEMANAS.filter(w => libretaCompleta(w.id)).length >= 5) des('escriba');
+  if (Object.keys(E.explica).length >= 5) des('profesor');
+  if (NUCLEO.every(w => E.explica[w.id])) des('catedra');
+  if (semanaTerminada('03') && semanaTerminada('09')) des('puntos-debiles');
+  for (const b of [1, 2, 3, 4]) if (SEMANAS.filter(w => w.bloque === b).every(w => semanaTerminada(w.id))) des('bloque-' + b);
+  const sa = semanasActivas();
+  if (sa >= 4) des('ritmo');
+  if (sa >= 12) des('habito');
+  const hechasNucleo = NUCLEO.reduce((a, w) => a + hechasSemana(w.id), 0);
+  if (hechasNucleo >= Math.ceil(NUCLEO.length * 3 / 2)) des('ecuador');
+  if (NUCLEO.every(w => semanaCompleta(w.id))) des('completo');
+  if (SEMANAS.some(w => w.opcional && semanaTerminada(w.id))) des('distribuido');
+  return nuevos;
+}
+
+/* Envuelve cualquier cambio de progreso: calcula XP, logros, avisos y guarda. */
+function cambiar(fn, ctx = {}, opciones = {}) {
+  const xpAntes = xpTotal(), nvAntes = nivelDe(xpAntes);
+  fn();
+  E.actualizado = Date.now();
+  const nuevos = evaluarLogros(ctx);
+  const xpDespues = xpTotal(), nvDespues = nivelDe(xpDespues);
+  const ganada = xpDespues - xpAntes - nuevos.reduce((a, id) => a + LOGRO[id].xp, 0);
+  if (ganada > 0 && !opciones.silencioso) avisar(`<span>${opciones.texto || 'Progreso guardado'}</span><span class="mono">+${ganada} XP</span>`);
+  for (const id of nuevos) avisar(`<span>Logro desbloqueado: <strong>${esc(LOGRO[id].nombre)}</strong></span><span class="mono">+${LOGRO[id].xp} XP</span>`);
+  if (nvDespues > nvAntes) avisar(`<span>Subes a <b>NV ${pad(nvDespues)}</b> · ${tituloDe(nvDespues)}</span>`, 'nivel');
+  Almacen.guardarEstado();
+  if (opciones.render !== false) render(); else pintarCabecera();
+}
+
+function avisar(html, clase = '') {
+  const cont = document.getElementById('avisos');
+  const el = document.createElement('div');
+  el.className = 'aviso ' + clase;
+  el.innerHTML = html;
+  cont.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+/* ───────────────────────── Almacenamiento ─────────────────────────
+   1) localStorage como caché inmediata.  2) db de la cuenta (data/users/<id>/…) para tenerlo en cualquier dispositivo. */
+const CLAVE_E = 'rotacion:estado', CLAVE_L = 'rotacion:libreta';
+const Almacen = {
+  modo: 'local', db: null, uid: null, enVuelo: {}, pendiente: {}, temporizadores: {},
+  leerLocal() {
+    try {
+      const e = JSON.parse(localStorage.getItem(CLAVE_E) || 'null');
+      const l = JSON.parse(localStorage.getItem(CLAVE_L) || 'null');
+      if (e && typeof e === 'object') E = { ...estadoVacio(), ...e };
+      if (l && typeof l === 'object') L = l;
+    } catch (_) { /* sin almacenamiento local */ }
+  },
+  escribirLocal() {
+    try { localStorage.setItem(CLAVE_E, JSON.stringify(E)); localStorage.setItem(CLAVE_L, JSON.stringify(L)); } catch (_) { }
+  },
+  marcar(modo, texto) {
+    this.modo = modo;
+    const el = document.getElementById('estado-almacen');
+    el.className = 'estado-almacen ' + modo;
+    el.querySelector('span').textContent = texto;
+  },
+  async iniciar() {
+    this.leerLocal();
+    render();
+    this.marcar('local', 'Guardado en este navegador');
+    if (!enClaude()) {
+      // Fuera de Claude (GitHub Pages, app instalada): pide al navegador que no borre estos datos por su cuenta.
+      try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => { }); } catch (_) { }
+      return;
+    }
+    let terminado = false;
+    const limite = setTimeout(() => { if (!terminado) this.marcar('local', 'Sin conexión con tu cuenta: guardando en este navegador'); }, 10000);
+    try {
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!db || !user) { terminado = true; clearTimeout(limite); return; }
+      const uid = await user.id();
+      if (!uid) { terminado = true; clearTimeout(limite); return; }
+      this.db = db; this.uid = uid;
+      this.marcar('local', 'Sincronizando con tu cuenta…');
+      const snap = await db.collection('data/users/' + uid).get();
+      terminado = true; clearTimeout(limite);
+      const docs = {};
+      for (const d of snap.docs) docs[d.id] = d.data();
+      // Estado: gana el más reciente.
+      const nubeE = docs.estado;
+      if (nubeE && (nubeE.actualizado || 0) >= (E.actualizado || 0)) E = { ...estadoVacio(), ...JSON.parse(JSON.stringify(nubeE)) };
+      else if (E.actualizado) this.escribirNube('estado', E);
+      // Libreta: semana a semana, gana la entrada más reciente.
+      for (const w of SEMANAS) {
+        const nube = docs['libreta-' + w.id];
+        const local = L[w.id];
+        if (nube && (!local || (nube.actualizado || 0) >= (local.actualizado || 0))) L[w.id] = JSON.parse(JSON.stringify(nube));
+        else if (local && local.actualizado) this.escribirNube('libreta-' + w.id, local);
+      }
+      this.escribirLocal();
+      this.marcar('nube', 'Guardado en tu cuenta de Claude');
+      render();
+    } catch (err) {
+      terminado = true; clearTimeout(limite);
+      this.marcar('local', 'No se pudo usar tu cuenta: guardando en este navegador');
+    }
+  },
+  async escribirNube(docId, datos) {
+    if (!this.db || !this.uid) return;
+    if (this.enVuelo[docId]) { this.pendiente[docId] = datos; return; }
+    this.enVuelo[docId] = true;
+    try {
+      await this.db.collection('data/users/' + this.uid).doc(docId).set(JSON.parse(JSON.stringify(datos)));
+      if (this.modo !== 'nube') this.marcar('nube', 'Guardado en tu cuenta de Claude');
+    } catch (err) {
+      const code = err && err.code;
+      if (code === 'quota_exceeded') this.marcar('local', 'Tu almacenamiento en la nube está lleno: guardando en este navegador');
+      else if (code === 'unavailable') { setTimeout(() => this.escribirNube(docId, datos), 1500 + Math.random() * 1000); }
+      else { this.db = null; this.marcar('local', 'Guardando solo en este navegador'); }
+    } finally {
+      this.enVuelo[docId] = false;
+      if (this.pendiente[docId]) { const p = this.pendiente[docId]; delete this.pendiente[docId]; this.escribirNube(docId, p); }
+    }
+  },
+  programar(docId, obtener, ms = 900) {
+    clearTimeout(this.temporizadores[docId]);
+    this.temporizadores[docId] = setTimeout(() => this.escribirNube(docId, obtener()), ms);
+  },
+  guardarEstado() { this.escribirLocal(); this.programar('estado', () => E, 600); },
+  guardarLibreta(id) { this.escribirLocal(); this.programar('libreta-' + id, () => L[id] || {}, 1200); }
+};
+
+/* ───────────────────────── Pintado ───────────────────────── */
+function pipsSemana(id) {
+  const p = TIPOS.map(t => { const s = ses(id, t); return `<i class="pip ${s ? (s.modo === 'completa' ? 'full' : 'min') : ''}" title="${NOMBRE_TIPO[t]}: ${s ? (s.modo === 'completa' ? 'completa' : 'mínima') : 'pendiente'}"></i>`; }).join('');
+  return `<span class="pips" aria-label="${hechasSemana(id)} de 3 sesiones">${p}<i class="pip exp sep ${E.explica[id] ? 'full' : ''}" title="Explícalo: ${E.explica[id] ? 'hecho' : 'pendiente'}"></i></span>`;
+}
+const NOMBRE_RANGO = ['Sin empezar', 'Rango I', 'Rango II', 'Rango III'];
+function etiquetaRango(id) {
+  const r = rangoSemana(id);
+  if (r === 0) { const h = hechasSemana(id); return `<span class="rango r0">${h ? h + '/3' : '—'}</span>`; }
+  return `<span class="rango r${r}">${NOMBRE_RANGO[r]}</span>`;
+}
+
+function pintarCabecera() {
+  const xp = xpTotal(), nv = nivelDe(xp);
+  const desde = xpNivel(nv), hasta = xpNivel(nv + 1);
+  const pct = Math.min(100, ((xp - desde) / (hasta - desde)) * 100);
+  document.getElementById('cab-xp').innerHTML = `<span>NV <b>${pad(nv)}</b></span><span class="barra" aria-hidden="true"><i style="width:${pct}%"></i></span><span class="tab">${nf.format(xp)} XP</span>`;
+}
+
+function fichaNivel() {
+  const xp = xpTotal(), nv = nivelDe(xp);
+  const desde = xpNivel(nv), hasta = xpNivel(nv + 1);
+  const pct = Math.min(100, ((xp - desde) / (hasta - desde)) * 100);
+  return `
+    <div class="nivel">
+      <div class="nivel-num" aria-label="Nivel ${nv}">${pad(nv)}</div>
+      <div class="nivel-txt"><span class="etq">Nivel</span><strong>${tituloDe(nv)}</strong></div>
+    </div>
+    <div>
+      <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}" aria-label="Progreso hacia el siguiente nivel"><i style="width:${pct}%"></i></div>
+      <div class="xp-linea tab"><span>${nf.format(xp)} XP</span><span>NV ${pad(nv + 1)} · ${nf.format(hasta)} XP</span></div>
+    </div>`;
+}
+
+function vistaRuta() {
+  const sig = siguienteSesion();
+  const vacio = Object.keys(E.sesiones).length === 0;
+  const actual = semanaActual();
+  let siguiente;
+  if (sig) {
+    const s = sig.t === 'explica' ? sig.w.sesiones.explica : sig.w.sesiones[sig.t];
+    const titulo = sig.t === 'explica' ? 'Explícaselo a un compañero' : s.titulo;
+    siguiente = `
+      <span class="etq">Siguiente · Semana ${sig.w.id} · ${NOMBRE_TIPO[sig.t]}</span>
+      <h2>${titulo}</h2>
+      <div class="sub prose">${sig.t === 'explica' ? s.reto : `<p>${s.objetivo}</p>`}</div>
+      ${sig.t !== 'explica' ? `<div class="minibox"><span class="etq">¿Poca energía? Versión mínima</span>${s.minima}</div>` : ''}
+      ${vacio ? `<p class="aviso-inicio">Empiezas cuando apruebes el teórico de moto. Cuando llegue el día, abre la semana 0: los primeros 30 minutos son montar el proyecto y tu primera herramienta.</p>` : ''}
+      <div class="acc"><a class="btn" href="#semana-${sig.w.id}" data-ancla="s-${sig.t}">Abrir la sesión</a><span class="muted tab" style="font-size:13px">${sig.w.titulo}</span></div>`;
+  } else {
+    siguiente = `<span class="etq">Bootcamp completado</span><h2>Has terminado todas las sesiones.</h2><p class="sub">Repasa tu libreta, mejora las sesiones que hiciste en versión mínima o vuelve a medir con lo que sabes ahora.</p>`;
+  }
+  const bloques = Object.keys(BLOQUES).map(Number).map(b => {
+    const ws = SEMANAS.filter(w => w.bloque === b);
+    if (!ws.length) return '';
+    const hechas = ws.reduce((a, w) => a + hechasSemana(w.id), 0);
+    const filas = ws.map(w => `
+      <a class="fila ${w.id === actual ? 'actual' : ''}" href="#semana-${w.id}">
+        <span class="num">S${w.id}</span>
+        <span><span class="tit">${w.titulo}</span><span class="res">${w.resumen}</span></span>
+        ${pipsSemana(w.id)}
+        ${etiquetaRango(w.id)}
+      </a>`).join('');
+    return `<section class="bloque">
+      <div class="bloque-cab"><h2><span class="etq">Bloque ${b}</span>${BLOQUES[b].nombre}</h2><span class="prog tab">${hechas}/${ws.length * 3} sesiones</span></div>
+      ${filas}
+    </section>`;
+  }).join('');
+  return `
+    <section class="portada">
+      <div class="ficha">${fichaNivel()}
+        <dl class="mini-stats">
+          <dt>Sesiones</dt><dd>${NUCLEO.reduce((a, w) => a + hechasSemana(w.id), 0)}/${NUCLEO.length * 3}</dd>
+          <dt>Explicaciones</dt><dd>${NUCLEO.filter(w => E.explica[w.id]).length}/${NUCLEO.length}</dd>
+          <dt>Logros</dt><dd>${Object.keys(E.logros).length}/${LOGROS.length}</dd>
+          <dt>Semana actual</dt><dd>${actual ? 'S' + actual : '—'}</dd>
+        </dl>
+        <a class="btn sec" href="#hoja" style="align-self:flex-start">Ver hoja de personaje</a></div>
+      <div class="siguiente">${siguiente}</div>
+    </section>
+    ${necesitaCopia() ? `<div class="recordatorio"><span>Tu progreso vive solo en este navegador. <strong>Última copia de seguridad: ${textoUltimaCopia()}.</strong></span>${enClaude()
+      ? '<a class="btn sec" href="#ajustes">Hacer una copia</a>'
+      : '<button class="btn sec" data-accion="descargar-json">Descargar copia</button>'}</div>` : ''}
+    <section class="reglas" aria-labelledby="reglas-t">
+      <span class="etq" id="reglas-t">Reglas del juego</span>
+      <ol>
+        <li><strong>Una semana del bootcamp no es una semana del calendario.</strong> Si una semana no puedes, la siguiente empieza donde lo dejaste.</li>
+        <li><strong>La versión mínima cuenta.</strong> Da la mitad de XP, desbloquea lo siguiente y puedes mejorarla después.</li>
+        <li><strong>Regla de los 10 minutos.</strong> Si llevas 10 minutos atascado, abre la siguiente pista. Las pistas no restan nada.</li>
+        <li><strong>Sin IA mientras resuelves.</strong> Úsala después para revisar tu solución o para dudas que ya hayas intentado resolver.</li>
+        <li><strong>La XP no caduca.</strong> No hay rachas que se rompan: volver después de una pausa tiene premio.</li>
+      </ol>
+    </section>
+    <div class="leyenda">
+      <span><i class="pip full"></i> completa</span>
+      <span><i class="pip min"></i> mínima</span>
+      <span><i class="pip"></i> pendiente</span>
+      <span><i class="pip exp full"></i> explícalo</span>
+      <span>Rango I: 3 sesiones · II: todas completas · III: + explícalo y libreta</span>
+    </div>
+    ${bloques}`;
+}
+
+function bloquePistas(w, t, s) {
+  const k = sid(w.id, t);
+  const abiertas = E.pistas[k] || 0;
+  const items = [1, 2, 3].map(i => {
+    if (i <= abiertas) return `<div class="pista"><div class="pista-btn" style="cursor:default"><span>Pista ${i}</span><span class="muted">abierta</span></div><div class="pista-cont prose">${s['pista' + i]}</div></div>`;
+    const habil = i === abiertas + 1;
+    return `<div class="pista"><button class="pista-btn" data-accion="pista" data-id="${k}" data-n="${i}" ${habil ? '' : 'disabled'}><span>Pista ${i}</span><span class="${habil ? '' : 'muted'}">${habil ? 'Abrir' : 'Abre antes la ' + (i - 1)}</span></button></div>`;
+  }).join('');
+  return `<div class="bloque-sec pistas"><h4>Pistas</h4><p class="regla">Atascado más de 10 minutos: abre la siguiente. De la 1 a la 3 van de empujón a casi solución.</p>${items}</div>`;
+}
+
+function accionesSesion(k, s) {
+  if (!s) return `
+    <button class="btn" data-accion="completar" data-id="${k}" data-modo="completa">Hecha · completa <span class="xp">+${XP.completa} XP</span></button>
+    <button class="btn sec" data-accion="completar" data-id="${k}" data-modo="minima">Hecha · versión mínima <span class="xp">+${XP.minima} XP</span></button>`;
+  if (s.modo === 'minima') return `
+    <span class="hecha">◐ Mínima · ${fmtFecha(s.fecha)}</span>
+    <button class="btn sec" data-accion="mejorar" data-id="${k}">Mejorar a completa <span class="xp">+${XP.completa - XP.minima} XP</span></button>
+    <button class="btn fant" data-accion="desmarcar" data-id="${k}">Desmarcar</button>`;
+  return `<span class="hecha">■ Completa · ${fmtFecha(s.fecha)}</span><button class="btn fant" data-accion="desmarcar" data-id="${k}">Desmarcar</button>`;
+}
+
+function pillSesion(s) {
+  if (!s) return `<span class="pill">Pendiente</span>`;
+  return s.modo === 'completa' ? `<span class="pill ok">Completa</span>` : `<span class="pill min">Mínima</span>`;
+}
+
+function tarjetaSesion(w, t, i) {
+  const s = w.sesiones[t];
+  const k = sid(w.id, t);
+  const est = E.sesiones[k];
+  return `
+  <article class="sesion" id="s-${t}">
+    <header><span class="paso">${pad(i)} <span class="muted">·</span> ${NOMBRE_TIPO[t]}</span>${pillSesion(est)}</header>
+    <div class="cuerpo">
+      <h2>${s.titulo}</h2>
+      <p class="objetivo"><span class="etq">Objetivo</span>${s.objetivo}</p>
+      <div class="prose">${s.reto}</div>
+      <div class="bloque-sec"><h4>Has terminado cuando</h4><ul class="checks">${s.hecho.map(h => `<li>${h}</li>`).join('')}</ul></div>
+      <div class="bloque-sec minima"><h4><span>Versión mínima · días de poca energía</span><span class="muted mono" style="text-transform:none;letter-spacing:0">≈ 15 min · +${XP.minima} XP</span></h4><div class="prose">${s.minima}</div></div>
+      ${bloquePistas(w, t, s)}
+    </div>
+    <footer class="acciones">${accionesSesion(k, est)}</footer>
+  </article>`;
+}
+
+function campoLibreta(id, c, filas = 3) {
+  const v = (L[id] && L[id][c.k]) || '';
+  return `<div class="${c.mono ? 'ancho' : ''}"><label for="lib-${id}-${c.k}">${c.t}</label><textarea id="lib-${id}-${c.k}" rows="${filas}" class="${c.mono ? 'mono' : ''}" data-libreta="${id}" data-campo="${c.k}" placeholder="${esc(c.ph)}">${esc(v)}</textarea></div>`;
+}
+function estadoLibreta(id) {
+  return libretaCompleta(id) ? `<span class="lib-estado ok" id="lib-est-${id}">■ Libreta completa · +${XP.libreta} XP</span>` : `<span class="lib-estado" id="lib-est-${id}">Rellena las tres primeras para +${XP.libreta} XP</span>`;
+}
+
+function vistaSemana(id) {
+  const w = POR_ID[id];
+  if (!w) return `<p>No existe esa semana. <a href="#ruta">Volver a la ruta</a></p>`;
+  const i = SEMANAS.indexOf(w);
+  const ant = SEMANAS[i - 1], sig = SEMANAS[i + 1];
+  const ex = w.sesiones.explica;
+  const exp = E.explica[id];
+  const bonus = bonusRotacion(id);
+  return `
+  <div class="col">
+    <nav class="migas"><a href="#ruta">← Ruta</a><span>Bloque ${w.bloque} · ${BLOQUES[w.bloque].nombre}</span>${w.opcional ? '<span>Opcional</span>' : ''}</nav>
+    <header class="sem-cab">
+      <div class="sem-num">${w.id}</div>
+      <h1>${w.titulo}</h1>
+      <p class="resumen">${w.resumen}</p>
+      <div class="estado">${pipsSemana(id)}${etiquetaRango(id)}${bonus ? `<span class="muted mono" style="font-size:12px">Bonus de rotación +${XP.rotacion} XP</span>` : `<span class="muted" style="font-size:13px">Completa las 3 sesiones y el explícalo para el bonus de rotación (+${XP.rotacion} XP)</span>`}</div>
+    </header>
+    <section class="ochenta">
+      <div><h3>Lo que ya sabes <span class="mono">80 %</span></h3><ul>${w.sabes.map(x => `<li>${x}</li>`).join('')}</ul></div>
+      <div><h3>Lo nuevo <span class="mono">20 %</span></h3><ul>${w.nuevo.map(x => `<li>${x}</li>`).join('')}</ul></div>
+    </section>
+    <section class="obj"><h3>Al terminar la semana podrás</h3><ul class="checks">${w.objetivos.map(x => `<li>${x}</li>`).join('')}</ul></section>
+    <p class="pieza"><span class="etq">Pieza del tracker</span><span>${w.tracker}</span></p>
+    <nav class="saltos" aria-label="Partes de la semana">
+      ${TIPOS.map((t, j) => `<a href="#semana-${id}" data-ancla="s-${t}"><i class="pip ${ses(id, t) ? (ses(id, t).modo === 'completa' ? 'full' : 'min') : ''}"></i>${pad(j + 1)} ${NOMBRE_TIPO[t]}</a>`).join('')}
+      <a href="#semana-${id}" data-ancla="s-explica"><i class="pip exp ${exp ? 'full' : ''}"></i>04 Explícalo</a>
+      <a href="#semana-${id}" data-ancla="s-libreta">Libreta</a>
+    </nav>
+    ${TIPOS.map((t, j) => tarjetaSesion(w, t, j + 1)).join('')}
+    <article class="sesion" id="s-explica">
+      <header><span class="paso">04 <span class="muted">·</span> Explícalo</span>${exp ? '<span class="pill ok">Hecho</span>' : '<span class="pill">Pendiente</span>'}</header>
+      <div class="cuerpo">
+        <h2>Explícaselo a un compañero</h2>
+        <div class="prose">${ex.reto}</div>
+        <div class="bloque-sec"><h4>Tu explicación debería cubrir</h4><ul class="checks">${ex.guia.map(g => `<li>${g}</li>`).join('')}</ul></div>
+        <div><label for="lib-${id}-explicacion">Tu explicación <span class="muted">· opcional, se guarda en la libreta. También vale contarlo en voz alta.</span></label>
+        <textarea id="lib-${id}-explicacion" rows="6" data-libreta="${id}" data-campo="explicacion" placeholder="Imagina que se lo cuentas a alguien del equipo que acaba de llegar.">${esc((L[id] && L[id].explicacion) || '')}</textarea></div>
+      </div>
+      <footer class="acciones">${exp
+        ? `<span class="hecha">■ Explicado · ${fmtFecha(exp.fecha)}</span><button class="btn fant" data-accion="desexplicar" data-id="${id}">Desmarcar</button>`
+        : `<button class="btn" data-accion="explicar" data-id="${id}">Explicado <span class="xp">+${XP.explica} XP</span></button>`}</footer>
+    </article>
+    <article class="sesion" id="s-libreta">
+      <header><span class="paso">Libreta de ingeniería</span>${estadoLibreta(id)}</header>
+      <div class="cuerpo"><div class="campos">${CAMPOS_LIB.map(c => campoLibreta(id, c, c.mono ? 5 : 4)).join('')}</div></div>
+    </article>
+    <nav class="sem-nav">
+      ${ant ? `<a href="#semana-${ant.id}"><span class="etq">← Semana ${ant.id}</span><span>${ant.titulo}</span></a>` : '<span></span>'}
+      ${sig ? `<a href="#semana-${sig.id}"><span class="etq">Semana ${sig.id} →</span><span>${sig.titulo}</span></a>` : ''}
+    </nav>
+  </div>`;
+}
+
+function vistaHoja() {
+  const cuenta = t => Object.entries(E.sesiones).filter(([k]) => k.endsWith('-' + t)).reduce((a, [, s]) => a + (s.modo === 'completa' ? 1 : 0.5), 0);
+  const total = SEMANAS.length;
+  const libretas = SEMANAS.filter(w => libretaCompleta(w.id)).length;
+  const sa = semanasActivas();
+  const attrs = [
+    { n: 'Construcción', v: cuenta('construir'), max: total, d: 'Sesiones de Construir (la mínima cuenta media).' },
+    { n: 'Análisis', v: cuenta('medir'), max: total, d: 'Sesiones de Medir: tu medidor de daño.' },
+    { n: 'Aplicación', v: cuenta('aplicar'), max: total, d: 'Sesiones de Aplicar en problemas reales.' },
+    { n: 'Didáctica', v: Object.keys(E.explica).length, max: total, d: 'Retos de «explícalo» superados.' },
+    { n: 'Reflexión', v: libretas, max: total, d: 'Semanas con la libreta completa.' },
+    { n: 'Constancia', v: sa, max: 20, d: 'Semanas del calendario con actividad. No tienen que ser seguidas.' }
+  ];
+  const attrHtml = attrs.map(a => `
+    <div class="attr">
+      <div class="n"><span>${a.n}</span><span class="puntos"></span></div><span class="v">${String(a.v).replace('.', ',')}/${a.max}</span>
+      <div class="barra"><i style="width:${Math.min(100, a.v / a.max * 100)}%"></i></div>
+      <small>${a.d}</small>
+    </div>`).join('');
+  const todas = Object.values(E.sesiones);
+  const completas = todas.filter(s => s.modo === 'completa').length;
+  const minimas = todas.length - completas;
+  const pistas = Object.values(E.pistas).reduce((a, b) => a + b, 0);
+  const dias = Object.keys(E.actividad).length;
+  const stats = [
+    [completas, 'sesiones completas'], [minimas, 'sesiones mínimas'], [Object.keys(E.explica).length, 'explicaciones'],
+    [Object.keys(E.logros).length + '/' + LOGROS.length, 'logros'], [pistas, 'pistas abiertas'], [dias, 'días activos']
+  ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
+  // Calor: 20 semanas hasta la actual
+  const semanasCal = 20;
+  const lunesHoy = aFecha(lunesDe(hoy()));
+  const inicio = new Date(lunesHoy); inicio.setDate(inicio.getDate() - 7 * (semanasCal - 1));
+  let celdas = '';
+  for (let i = 0; i < semanasCal * 7; i++) {
+    const d = new Date(inicio); d.setDate(d.getDate() + i);
+    const iso = isoLocal(d);
+    const n = E.actividad[iso] || 0;
+    const fut = iso > hoy();
+    celdas += `<i class="${fut ? 'fut' : n >= 3 ? 'c3' : n === 2 ? 'c2' : n === 1 ? 'c1' : ''}" title="${fmtFecha(iso)}: ${n} ${n === 1 ? 'acción' : 'acciones'}"></i>`;
+  }
+  const arbol = Object.keys(BLOQUES).map(Number).map(b => {
+    const ws = SEMANAS.filter(w => w.bloque === b);
+    return `<div><h4>${BLOQUES[b].nombre}</h4>${ws.map(w => {
+      const r = rangoSemana(w.id);
+      return `<a class="hab r${r}" href="#semana-${w.id}"><span><span class="mono muted" style="font-size:12px">${w.id}</span> ${w.titulo}</span><span class="rpips" title="${NOMBRE_RANGO[r]}">${[1, 2, 3].map(x => `<i class="${x <= r ? 'on' : ''}"></i>`).join('')}</span></a>`;
+    }).join('')}</div>`;
+  }).join('');
+  const nombre = E.nombre || '';
+  return `
+    <h1 class="titulo-vista">Hoja de personaje</h1>
+    <p class="intro-vista">Tus atributos suben con cada sesión. Nada baja con el tiempo.</p>
+    <div class="hoja">
+      <section class="tarjeta identidad">
+        <div><label for="nombre-pj" class="etq" style="font-weight:400">Nombre del personaje</label><input type="text" id="nombre-pj" value="${esc(nombre)}" placeholder="Escribe tu nombre" maxlength="40" data-nombre></div>
+        <dl class="ident-linea">
+          <dt>Clase</dt><dd>Theorycrafter</dd>
+          <dt>Especialidad</dt><dd>Backend Java</dd>
+          <dt>Rotación</dt><dd>Construir → Medir → Aplicar → Explicar</dd>
+          <dt>Semana actual</dt><dd>${semanaActual() ? 'S' + semanaActual() + ' · ' + POR_ID[semanaActual()].titulo : 'Bootcamp completado'}</dd>
+        </dl>
+        ${fichaNivel()}
+      </section>
+      <section class="tarjeta"><span class="etq">Atributos</span><div style="margin-top:14px">${attrHtml}</div></section>
+      <section class="tarjeta"><span class="etq">Estadísticas</span><div class="stats" style="margin-top:12px">${stats}</div></section>
+      <section class="tarjeta"><span class="etq">Actividad · últimas 20 semanas</span><div class="calor" style="margin-top:12px" aria-label="Mapa de actividad">${celdas}</div><p class="muted" style="font-size:12.5px;margin:8px 0 0">Cada casilla es un día. Más oscura, más sesiones. Los huecos no restan nada.</p></section>
+      <section class="tarjeta ancho"><span class="etq">Árbol de habilidades</span><p class="muted" style="font-size:13px;margin:4px 0 14px">${NOMBRE_RANGO[1]}: las 3 sesiones hechas · ${NOMBRE_RANGO[2]}: todas completas · ${NOMBRE_RANGO[3]}: además, explícalo y libreta</p><div class="arbol">${arbol}</div></section>
+    </div>`;
+}
+
+function vistaLogros() {
+  const n = Object.keys(E.logros).length;
+  const xpLogros = Object.keys(E.logros).reduce((a, id) => a + (LOGRO[id]?.xp || 0), 0);
+  const tarjetas = LOGROS.map(l => {
+    const f = E.logros[l.id];
+    return `<article class="logro ${f ? 'ok' : 'bloq'}"><h3><span>${f ? '<span class="sello" aria-hidden="true"></span>' : ''}${esc(l.nombre)}</span><span class="mono">+${l.xp} XP</span></h3><p>${esc(l.desc)}</p><span class="fecha">${f ? 'Desbloqueado el ' + fmtFecha(f) : 'Bloqueado'}</span></article>`;
+  }).join('');
+  return `<h1 class="titulo-vista">Logros</h1><p class="intro-vista"><span class="mono tab">${n}/${LOGROS.length}</span> desbloqueados · <span class="mono tab">${nf.format(xpLogros)} XP</span> de logros. Ninguno se pierde: una vez desbloqueado, es tuyo.</p><div class="logros">${tarjetas}</div>`;
+}
+
+let soloConNotas = false;
+function vistaLibreta() {
+  const tieneNotas = id => { const n = L[id]; return n && ['nosabia', 'aprendi', 'pendiente', 'numeros', 'explicacion'].some(k => (n[k] || '').trim()); };
+  const ws = SEMANAS.filter(w => !soloConNotas || tieneNotas(w.id));
+  const secciones = ws.map(w => `
+    <section class="lib-sem">
+      <h2><a href="#semana-${w.id}"><span class="mono">S${w.id}</span> ${w.titulo}</a>${estadoLibreta(w.id)}</h2>
+      <div class="campos">${CAMPOS_LIB.map(c => campoLibreta(w.id, c, 3)).join('')}
+        <div class="ancho"><label for="lib-${w.id}-explicacion">Mi explicación</label><textarea id="lib-${w.id}-explicacion" rows="3" data-libreta="${w.id}" data-campo="explicacion">${esc((L[w.id] && L[w.id].explicacion) || '')}</textarea></div>
+      </div>
+    </section>`).join('');
+  return `
+    <div class="col">
+      <h1 class="titulo-vista">Libreta de ingeniería</h1>
+      <p class="intro-vista">Lo que no sabías, lo que has aprendido, lo que te queda y tus números de cada semana. Se guarda solo mientras escribes.</p>
+      <div class="herr">
+        <label class="interruptor"><input type="checkbox" data-accion="filtro-notas" ${soloConNotas ? 'checked' : ''}> Solo semanas con notas</label>
+        ${enClaude() ? '' : '<button class="btn sec" data-accion="descargar-md">Descargar la libreta (.md)</button>'}
+        <button class="btn sec" data-accion="copiar-md">Copiar la libreta como Markdown</button>
+        <span class="muted" id="copia-md-estado" style="font-size:13px"></span>
+      </div>
+      ${secciones || '<p class="muted">Todavía no hay notas. Las verás aquí en cuanto escribas en cualquier semana.</p>'}
+    </div>`;
+}
+
+function vistaAjustes() {
+  return `
+    <div class="col">
+      <h1 class="titulo-vista">Guardado y copias</h1>
+      <p class="intro-vista">Tu progreso y tu libreta se guardan solos. Aquí puedes ver dónde y hacer una copia de seguridad.</p>
+      <section class="ajuste">
+        <h2>Dónde se guarda</h2>
+        ${Almacen.modo === 'nube'
+          ? '<p>Todo se guarda en tu cuenta de Claude y lo ves igual en cualquier dispositivo en el que abras esta página con tu cuenta.</p>'
+          : '<p>Todo se guarda en este navegador, en este dispositivo. Nada se sube a ningún servidor (tampoco a GitHub). Si borras los datos de navegación de este sitio, se pierde: descarga una copia de vez en cuando. Para pasar tu progreso a otro dispositivo, descarga aquí una copia y restáurala allí.</p>'}
+        <span class="estado-almacen ${Almacen.modo}"><i></i><span>${esc(document.querySelector('#estado-almacen span').textContent)}</span></span>
+      </section>
+      <section class="ajuste">
+        <h2>Copia de seguridad</h2>
+        <p>Guarda todo (progreso, logros y libreta) en un archivo JSON. Última copia: <strong>${textoUltimaCopia()}</strong>.</p>
+        <div class="herr" style="margin:0 0 10px">${enClaude() ? '' : '<button class="btn" data-accion="descargar-json">Descargar copia (.json)</button>'}<button class="btn ${enClaude() ? '' : 'sec'}" data-accion="copiar-json">Copiar como texto</button><span class="muted" id="copia-estado" style="font-size:13px"></span></div>
+        <textarea id="salida-json" rows="4" class="mono" readonly hidden></textarea>
+      </section>
+      <section class="ajuste">
+        <h2>Restaurar</h2>
+        <p>Pega una copia de seguridad o elige el archivo. Sustituye el progreso actual.</p>
+        <label for="entrada-json">Copia de seguridad</label>
+        <textarea id="entrada-json" rows="4" class="mono" placeholder='{"app":"la-rotacion", ...}'></textarea>
+        <div class="herr" style="margin:10px 0 0">
+          <button class="btn sec" data-accion="restaurar">Restaurar</button>
+          <label class="btn fant" for="archivo-json" style="margin:0;font-weight:400">Elegir archivo…</label>
+          <input type="file" id="archivo-json" accept=".json,application/json,text/plain" hidden>
+          <span class="muted" id="restaurar-estado" style="font-size:13px"></span>
+        </div>
+      </section>
+      <section class="ajuste">
+        <h2>Empezar de cero</h2>
+        <p>Borra el progreso, los logros y la libreta. No se puede deshacer, así que haz antes una copia.</p>
+        <button class="btn sec" data-accion="reiniciar" id="btn-reiniciar">Borrar todo el progreso</button>
+      </section>
+    </div>`;
+}
+
+/* ───────────────────────── Rutas ───────────────────────── */
+let anclaPendiente = null;
+function rutaActual() { return (location.hash || '#ruta').slice(1) || 'ruta'; }
+function render() {
+  const r = rutaActual();
+  const app = document.getElementById('app');
+  let vista = 'ruta';
+  if (r.startsWith('semana-')) { app.innerHTML = vistaSemana(r.slice(7)); vista = 'ruta'; }
+  else if (r === 'hoja') { app.innerHTML = vistaHoja(); vista = 'hoja'; }
+  else if (r === 'logros') { app.innerHTML = vistaLogros(); vista = 'logros'; }
+  else if (r === 'libreta') { app.innerHTML = vistaLibreta(); vista = 'libreta'; }
+  else if (r === 'ajustes') { app.innerHTML = vistaAjustes(); vista = 'ajustes'; }
+  else { app.innerHTML = vistaRuta(); }
+  document.querySelectorAll('#nav a').forEach(a => {
+    if (a.dataset.vista === vista) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  pintarCabecera();
+}
+function irAAncla(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+window.addEventListener('hashchange', () => {
+  render();
+  if (anclaPendiente) { const a = anclaPendiente; anclaPendiente = null; requestAnimationFrame(() => irAAncla(a)); }
+  else window.scrollTo(0, 0);
+});
+
+/* ───────────────────────── Eventos ───────────────────────── */
+function exportar() { return JSON.stringify({ app: 'la-rotacion', version: 1, exportado: new Date().toISOString(), estado: E, libreta: L }, null, 1); }
+function libretaMarkdown() {
+  let md = '# Libreta de ingeniería · La Rotación\n';
+  for (const w of SEMANAS) {
+    const n = L[w.id];
+    if (!n || !['nosabia', 'aprendi', 'pendiente', 'numeros', 'explicacion'].some(k => (n[k] || '').trim())) continue;
+    md += `\n## Semana ${w.id} · ${w.titulo.replace(/<[^>]+>/g, '')}\n`;
+    for (const c of [...CAMPOS_LIB, { k: 'explicacion', t: 'Mi explicación' }]) {
+      const v = (n[c.k] || '').trim();
+      if (!v) continue;
+      md += `\n### ${c.t}\n\n` + (c.mono ? '```\n' + v + '\n```\n' : v + '\n');
+    }
+  }
+  return md;
+}
+async function copiar(texto, estadoId, respaldoId) {
+  const est = document.getElementById(estadoId);
+  try {
+    await navigator.clipboard.writeText(texto);
+    if (est) est.textContent = 'Copiado al portapapeles.';
+  } catch (_) {
+    if (respaldoId) {
+      const ta = document.getElementById(respaldoId);
+      ta.hidden = false; ta.value = texto; ta.focus(); ta.select();
+      if (est) est.textContent = 'No se pudo copiar solo: selecciona el texto y cópialo.';
+    } else if (est) est.textContent = 'Tu navegador no permite copiar desde aquí.';
+  }
+}
+function restaurarDesde(texto) {
+  const est = document.getElementById('restaurar-estado');
+  try {
+    const d = JSON.parse(texto);
+    if (!d || d.app !== 'la-rotacion' || typeof d.estado !== 'object') throw new Error('formato');
+    E = { ...estadoVacio(), ...d.estado, actualizado: Date.now() };
+    L = d.libreta && typeof d.libreta === 'object' ? d.libreta : {};
+    const ahora = Date.now();
+    for (const id of Object.keys(L)) { L[id].actualizado = ahora; Almacen.guardarLibreta(id); }
+    Almacen.guardarEstado();
+    render();
+    const e2 = document.getElementById('restaurar-estado');
+    if (e2) e2.textContent = 'Copia restaurada.';
+  } catch (_) {
+    if (est) est.textContent = 'Ese texto no es una copia de La Rotación. Revisa que esté completo.';
+  }
+}
+
+let reiniciarArmado = false;
+document.addEventListener('click', ev => {
+  const ancla = ev.target.closest('[data-ancla]');
+  if (ancla) {
+    const destino = ancla.getAttribute('href');
+    if (destino && destino !== location.hash) { anclaPendiente = ancla.dataset.ancla; return; }
+    ev.preventDefault(); irAAncla(ancla.dataset.ancla); return;
+  }
+  const b = ev.target.closest('[data-accion]');
+  if (!b || b.tagName === 'INPUT') return;
+  const acc = b.dataset.accion, id = b.dataset.id;
+  if (acc === 'completar') {
+    const ultima = ultimaActividad();
+    const regreso = !!ultima && diasEntre(ultima, hoy()) >= 7;
+    const modo = b.dataset.modo;
+    cambiar(() => { E.sesiones[id] = { modo, fecha: hoy() }; registrarActividad(); }, { regreso }, { texto: modo === 'completa' ? 'Sesión completa' : 'Versión mínima hecha' });
+  } else if (acc === 'mejorar') {
+    cambiar(() => { E.sesiones[id] = { modo: 'completa', fecha: hoy() }; registrarActividad(); }, { mejora: true }, { texto: 'Sesión mejorada a completa' });
+  } else if (acc === 'desmarcar') {
+    cambiar(() => { delete E.sesiones[id]; }, {}, { silencioso: true });
+  } else if (acc === 'explicar') {
+    const ultima = ultimaActividad();
+    const regreso = !!ultima && diasEntre(ultima, hoy()) >= 7;
+    cambiar(() => { E.explica[id] = { fecha: hoy() }; registrarActividad(); }, { regreso }, { texto: 'Explicación hecha' });
+  } else if (acc === 'desexplicar') {
+    cambiar(() => { delete E.explica[id]; }, {}, { silencioso: true });
+  } else if (acc === 'pista') {
+    const n = Number(b.dataset.n);
+    if ((E.pistas[id] || 0) + 1 === n) cambiar(() => { E.pistas[id] = n; }, {}, { silencioso: true });
+  } else if (acc === 'copiar-json' || acc === 'descargar-json') {
+    E.ultimaCopia = Date.now();
+    Almacen.guardarEstado();
+    const texto = exportar();
+    if (acc === 'descargar-json') {
+      descargar(`la-rotacion-copia-${hoy()}.json`, texto, 'application/json');
+      avisar('<span>Copia de seguridad descargada.</span>');
+      render();
+    } else copiar(texto, 'copia-estado', 'salida-json');
+  } else if (acc === 'descargar-md') {
+    descargar(`libreta-la-rotacion-${hoy()}.md`, libretaMarkdown(), 'text/markdown');
+  } else if (acc === 'copiar-md') {
+    copiar(libretaMarkdown(), 'copia-md-estado');
+  } else if (acc === 'restaurar') {
+    restaurarDesde(document.getElementById('entrada-json').value);
+  } else if (acc === 'reiniciar') {
+    if (!reiniciarArmado) {
+      reiniciarArmado = true;
+      b.textContent = 'Pulsa otra vez para confirmar';
+      setTimeout(() => { reiniciarArmado = false; const x = document.getElementById('btn-reiniciar'); if (x) x.textContent = 'Borrar todo el progreso'; }, 5000);
+      return;
+    }
+    reiniciarArmado = false;
+    E = estadoVacio(); E.actualizado = Date.now();
+    const ids = Object.keys(L); L = {};
+    for (const lid of ids) { L[lid] = { actualizado: Date.now() }; Almacen.guardarLibreta(lid); }
+    Almacen.guardarEstado();
+    location.hash = '#ruta'; render();
+    avisar('<span>Progreso borrado. A empezar de nuevo.</span>');
+  }
+});
+
+document.addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.matches('[data-accion="filtro-notas"]')) { soloConNotas = t.checked; render(); }
+  if (t.id === 'archivo-json' && t.files && t.files[0]) {
+    t.files[0].text().then(txt => { document.getElementById('entrada-json').value = txt; restaurarDesde(txt); });
+  }
+});
+
+let temporLogros = null;
+document.addEventListener('input', ev => {
+  const t = ev.target;
+  if (t.dataset.libreta) {
+    const id = t.dataset.libreta, campo = t.dataset.campo;
+    L[id] = L[id] || {};
+    L[id][campo] = t.value;
+    L[id].actualizado = Date.now();
+    Almacen.guardarLibreta(id);
+    // Actualiza indicadores sin repintar (para no perder el foco)
+    document.querySelectorAll('#lib-est-' + id).forEach(el => { el.outerHTML = estadoLibreta(id); });
+    clearTimeout(temporLogros);
+    temporLogros = setTimeout(() => cambiar(() => { }, {}, { render: false, texto: 'Libreta al día' }), 700);
+  } else if (t.hasAttribute('data-nombre')) {
+    E.nombre = t.value.slice(0, 40);
+    E.actualizado = Date.now();
+    Almacen.guardarEstado();
+  }
+});
+
+Almacen.iniciar();
+
+// App instalable y disponible sin conexión cuando se sirve desde una web normal (GitHub Pages).
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !enClaude()) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
+}
+</script>
+</body>
+</html>

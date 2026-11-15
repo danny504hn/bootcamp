@@ -1,0 +1,242 @@
+=== SEMANA 11
+bloque: 3
+titulo: Patrón DAO y persistencia en ficheros
+resumen: Tu tracker deja de olvidarlo todo al cerrarse. Separas el "qué guardo" del "cómo lo guardo", y mides la diferencia entre reescribir un fichero entero y añadir al final, que es como funcionan las bases de datos por dentro.
+sabes:
+- Interfaces y polimorfismo (semana 2).
+- `MiHashMap` (semana 8).
+- Excepciones y try/catch.
+nuevo:
+- El patrón DAO (Data Access Object).
+- Leer y escribir ficheros con `java.nio.file`.
+- Pruebas de contrato: las mismas pruebas para varias implementaciones.
+- Inyección de dependencias a mano, sin frameworks.
+- Log append-only: la base de las bases de datos.
+objetivos:
+- Tener dos implementaciones de `HabitoDao` que pasan exactamente las mismas pruebas.
+- Medir reescribir todo frente a añadir al final.
+- Cerrar el tracker, volver a abrirlo y que tus datos sigan ahí.
+tracker: Capa de persistencia (DAO en memoria y en fichero) y `TrackerService`.
+
+--- construir
+titulo: Un contrato, dos motores
+objetivo: Definir el DAO de hábitos y registros con dos implementaciones (memoria y fichero) que pasan las mismas pruebas.
+reto:
+1. Define:
+
+```java
+public interface HabitoDao {
+    Habito guardar(Habito h);              // crea o reemplaza por id
+    Optional<Habito> buscar(String id);
+    List<Habito> listar();
+    boolean borrar(String id);
+}
+```
+
+y lo mismo para `RegistroDao` (con `listarPorHabito(String habitoId)`).
+
+2. `HabitoDaoMemoria`: sobre tu `MiHashMap`.
+3. `HabitoDaoFichero`: guarda en `datos/habitos.csv` (una línea por hábito). Al crearse, carga el fichero si existe; en cada cambio, lo reescribe entero.
+4. **Prueba de contrato:** un método `probarContrato(HabitoDao dao)` con 8 checks, que llamas una vez con cada implementación.
+
+El `Objetivo` de cada hábito también hay que guardarlo como texto, por ejemplo `DIAS_MINIMOS:4` o `MEDIA_MINIMA:7.0`. Crea `Objetivo.desdeTexto(String)` y `aTexto()`.
+hecho:
+- `probarContrato` pasa con las dos implementaciones sin cambiar ni una línea.
+- Si descartas un `HabitoDaoFichero` y creas otro, los hábitos siguen ahí.
+- Un hábito con objetivo `MediaMinima(7.0)` se guarda y se recupera igual.
+minima:
+Solo `HabitoDaoMemoria` y la prueba de contrato.
+pista1:
+`Files.createDirectories(ruta.getParent())`, `Files.readAllLines(ruta)` y `Files.write(ruta, lineas)`. Con `Files.exists(ruta)` sabes si es la primera vez.
+pista2:
+Formato: `id;nombre;tipo;objetivo`. ¿Y si un nombre contiene `;`? Tienes dos opciones: escaparlo o prohibirlo en el constructor de `Habito`. Prohibirlo es un invariante más, y te ahorra el problema (semana 1).
+pista3:
+`desdeTexto` es una pequeña fábrica: separa por `:` y, con un `switch` sobre la primera parte, crea la implementación correcta (`case "DIAS_MINIMOS" -> new DiasMinimos(Integer.parseInt(partes[1]));`). Es el único sitio del código donde se permite un switch por tipo, porque es donde nacen los objetos.
+
+--- medir
+titulo: Reescribir todo frente a añadir al final
+objetivo: Medir dos formas de guardar registros en fichero y entender por qué las bases de datos usan logs append-only.
+reto:
+Implementa dos versiones de `RegistroDao` en fichero:
+
+- **Reescritura:** cada `guardar` reescribe el fichero entero con todos los registros.
+- **Append-only:** cada `guardar` añade una línea al final: `Files.writeString(ruta, linea + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND)`.
+
+Con el Complejómetro, inserta n registros uno a uno (n = 1 000, 2 000 y 4 000). Compara también con `RegistroDaoMemoria`.
+
+Después piensa en la pega del append-only: ¿cómo borras un registro? (Pista: no lo borras.)
+hecho:
+- La k de las dos versiones de fichero apuntada (≈2 frente a ≈1).
+- El tiempo por operación en memoria frente a fichero.
+- Has diseñado (en papel o en código) cómo borrar en un log append-only.
+minima:
+Reescritura frente a append-only con n = 2 000 y 4 000.
+pista1:
+Reescribir n registros en cada inserción supone 1 + 2 + … + n líneas escritas: O(n²) en total. Añadir una línea: O(1) por inserción.
+pista2:
+Para borrar en append-only se añade una línea "lápida": `BORRADO;id`. Al cargar, se lee el log entero de principio a fin y se aplican las operaciones en orden. Es la idea del Write-Ahead Log de PostgreSQL y del log de Kafka.
+pista3:
+La pega: el log crece para siempre y cargar se vuelve lento. La solución es la **compactación**: de vez en cuando se reescribe el fichero con solo el estado actual. Es lo mismo que hace tu reescritura, pero de vez en cuando en lugar de en cada operación.
+
+--- aplicar
+titulo: Cambia el motor sin tocar el coche
+objetivo: Crear la capa de servicio del tracker, que solo depende de interfaces, y elegir el almacenamiento al arrancar.
+reto:
+1. Crea `TrackerService`, que recibe los DAO **por el constructor**:
+
+```java
+public TrackerService(HabitoDao habitos, RegistroDao registros)
+```
+
+Con los métodos `crearHabito(...)`, `marcar(habitoId, fecha, valor)`, `desmarcar(habitoId, fecha)` e `informeSemanal(LocalDate lunes)` (la tabla de la semana 2).
+
+2. En `tracker.Main`, elige la implementación según un argumento: `java tracker.Main memoria` o `java tracker.Main fichero`.
+3. Ejecuta con `fichero`, crea tus hábitos reales, marca 3 días, cierra, vuelve a abrir e imprime el informe.
+hecho:
+- `TrackerService` no contiene ningún `new` de un DAO ni la palabra "fichero".
+- Pasar de memoria a fichero solo cambia una línea de `Main`.
+- Tus datos sobreviven a reiniciar el programa.
+minima:
+`TrackerService` con `marcar` e `informeSemanal` usando el DAO en memoria.
+pista1:
+Esto es inyección de dependencias sin frameworks: quien crea el servicio decide qué DAO le pasa. Spring hace exactamente esto, de forma automática.
+pista2:
+Para que el informe funcione con los dos DAO, pide los registros con `registros.listarPorHabito(id)` y filtra la semana con tu `Rango<LocalDate>` (semana 3) o, mejor, construye un `IndiceRegistros` (semana 8) al arrancar.
+pista3:
+`Main`:
+```java
+HabitoDao hd = args.length > 0 && args[0].equals("fichero")
+        ? new HabitoDaoFichero(Path.of("datos/habitos.csv"))
+        : new HabitoDaoMemoria();
+// lo mismo para RegistroDao
+TrackerService servicio = new TrackerService(hd, rd);
+```
+
+--- explica
+reto:
+¿Qué problema resuelve el patrón DAO? Imagina que mañana el tracker tiene que guardar en una base de datos de verdad: ¿qué clases cambiarían, cuáles no, y por qué?
+guia:
+- Separar qué se guarda de cómo se guarda.
+- La prueba de contrato como garantía.
+- Inyección de dependencias por constructor.
+- Append-only frente a reescritura: tus números y la idea de las bases de datos.
+
+=== SEMANA 12
+bloque: 3
+titulo: Patrones que ya usas (y Observer)
+resumen: Llevas semanas aplicando patrones de diseño sin ponerles nombre. Esta semana los identificas en tu propio código, añades uno nuevo (Observer) y mides lo único que importa de un patrón: cuánto cuesta cambiar el código.
+sabes:
+- `Objetivo` (semana 2), `Comando` (semana 7), el DAO y `desdeTexto` (semana 11).
+- Interfaces y composición.
+nuevo:
+- Strategy, Command y Factory: ponerle nombre a lo que ya hiciste.
+- Observer: avisar a quien le interese sin conocerlo.
+- Records de Java para eventos inmutables.
+- Medir el coste de cambio (archivos y líneas tocadas).
+objetivos:
+- Tener un mapa de los patrones de tu tracker.
+- Construir un bus de eventos y conectarle 3 oyentes.
+- Comparar con `git diff --stat` cuánto cuesta añadir una funcionalidad con y sin eventos.
+tracker: `BusEventos` con oyentes de rachas, logros y auditoría.
+
+--- construir
+titulo: El bus de eventos
+objetivo: Construir un sistema de publicación de eventos (Observer) y crear el mapa de patrones de tu tracker.
+reto:
+**Parte 1. Mapa de patrones (10 min).** En la libreta, identifica en tu código:
+
+- **Strategy:** algo que elige un comportamiento intercambiable.
+- **Command:** acciones convertidas en objetos.
+- **Factory:** un método que decide qué clase crear.
+- **DAO:** acceso a datos detrás de una interfaz.
+
+**Parte 2. Bus de eventos.**
+
+```java
+public interface Evento {}
+public record HabitoMarcado(String habitoId, LocalDate fecha, double valor) implements Evento {}
+public record HabitoDesmarcado(String habitoId, LocalDate fecha) implements Evento {}
+
+public interface Oyente { void recibir(Evento e); }
+
+public final class BusEventos {
+    public void suscribir(Oyente o) { ... }
+    public void publicar(Evento e) { ... } // avisa a todos los oyentes
+}
+```
+
+Cada oyente decide qué eventos le interesan con pattern matching: `if (e instanceof HabitoMarcado m) { ... m.habitoId() ... }`.
+hecho:
+- Los 4 patrones localizados, con el nombre de la clase de tu código.
+- Un oyente de prueba recibe los eventos publicados (con checks).
+- Un oyente que lanza una excepción no impide que los demás reciban el evento.
+minima:
+Solo la parte 1, o solo el bus con un oyente que imprime.
+pista1:
+Strategy → `Objetivo`. Command → `Comando` del historial. Factory → `Objetivo.desdeTexto`. DAO → `HabitoDao`. Llevas usando patrones desde la semana 2.
+pista2:
+Un `record` es una clase inmutable en una línea: Java genera el constructor, los getters (`habitoId()`), `equals`, `hashCode` y `toString`. Es exactamente lo que escribiste a mano en `Registro` en la semana 1.
+pista3:
+Para que un oyente roto no afecte al resto:
+```java
+public void publicar(Evento e) {
+    for (Oyente o : oyentes) {
+        try { o.recibir(e); }
+        catch (RuntimeException ex) { System.err.println("Oyente falló: " + ex.getMessage()); }
+    }
+}
+```
+
+--- medir
+titulo: El coste de cambio
+objetivo: Medir con git cuánto cuesta añadir una funcionalidad con y sin eventos, y el coste en tiempo de publicar un evento.
+reto:
+**Funcionalidad:** "cuando un hábito llegue a 7 días seguidos, imprime `RACHA 7: gym`".
+
+1. Haz un commit del estado actual. En una rama `sin-eventos`, impleméntala **sin** el bus, modificando directamente `TrackerService.marcar`. Apunta el resultado de `git diff --stat`.
+2. Vuelve a la rama principal. En una rama `con-eventos`, impleméntala con un oyente nuevo y una línea para suscribirlo. Apunta `git diff --stat`.
+3. **Rendimiento:** publica 1 000 000 de eventos con 0, 1, 10 y 100 oyentes. Apunta los ns por evento.
+hecho:
+- Los dos `git diff --stat` apuntados: archivos modificados frente a archivos nuevos.
+- La tabla de ns por evento según el número de oyentes.
+- Una frase con tu conclusión: ¿cuándo compensa el bus?
+minima:
+Solo los pasos 1 y 2.
+pista1:
+Fíjate menos en el número de líneas y más en esto: ¿has **modificado** código que ya funcionaba o solo has **añadido** código nuevo? Modificar es donde se cuelan los bugs (abierto/cerrado, semana 2).
+pista2:
+El coste de publicar debería crecer de forma lineal con los oyentes: es un bucle que llama a cada uno. Incluso con 100 oyentes triviales hablamos de cientos de nanosegundos o pocos microsegundos por evento: irrelevante para el tracker.
+pista3:
+La cara oculta del Observer: el flujo del programa ya no se lee de arriba abajo. Para saber qué pasa al marcar un hábito tienes que buscar quién está suscrito. Con 3 oyentes es comodísimo; con 50 repartidos por el código, depurar es un infierno. Eso también es coste de cambio.
+
+--- aplicar
+titulo: Rachas, logros y auditoría
+objetivo: Conectar el tracker al bus de eventos con tres oyentes reales.
+reto:
+1. `TrackerService` publica `HabitoMarcado` y `HabitoDesmarcado` en lugar de hacer él todo el trabajo.
+2. Crea tres oyentes:
+   - `RachaOyente`: mantiene la racha actual de cada hábito (usa tu `IndiceRegistros` de la semana 8) y avisa al llegar a 7, 30 y 100.
+   - `LogroOyente`: desbloquea logros del tracker ("primera semana perfecta", "10 días de gym"). Sí, como los de esta web.
+   - `AuditoriaOyente`: escribe cada evento en `datos/auditoria.log` (append-only, semana 11).
+3. Conecta todo en `Main` y prueba un escenario completo de 10 días.
+hecho:
+- `TrackerService.marcar` no sabe nada de rachas, logros ni auditoría.
+- El log de auditoría tiene una línea por evento, en orden.
+- El escenario de 10 días dispara el aviso de racha 7 en el día correcto (con un check).
+minima:
+`RachaOyente` conectado al servicio.
+pista1:
+Orden de construcción en `Main`: crea el bus, crea y suscribe los oyentes, y crea el servicio pasándole el bus. El servicio solo conoce el bus, no a los oyentes.
+pista2:
+`RachaOyente` necesita saber qué días están hechos. Puede tener su propio `IndiceRegistros`, que actualiza con cada evento (`HabitoMarcado` → agregar, `HabitoDesmarcado` → quitar), y llamar a `rachaActual` tras cada cambio.
+pista3:
+Para que el aviso de 7 días salga solo una vez, guarda la última racha avisada de cada hábito en un `MiHashMap<String, Integer>` y avisa solo si la racha nueva alcanza un umbral que todavía no habías avisado.
+
+--- explica
+reto:
+Strategy, Command y Observer: explica con ejemplos de TU tracker qué problema resuelve cada uno. Después, pon un ejemplo concreto de cuándo usar un patrón sería sobreingeniería.
+guia:
+- Strategy: el comportamiento cambia sin cambiar la clase (`Objetivo`).
+- Command: acciones como objetos que se pueden guardar y deshacer.
+- Observer: avisar sin conocer al receptor (tus diffs de git).
+- El coste oculto de cada patrón, y cuándo no compensa.

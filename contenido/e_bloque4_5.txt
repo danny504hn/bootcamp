@@ -1,0 +1,571 @@
+=== SEMANA 13
+bloque: 4
+titulo: HTTP por dentro: un servidor con sockets
+resumen: Antes de usar ninguna librería, ves los bytes. Montas un servidor HTTP con un ServerSocket, lo atacas con tu propio generador de carga y comparas un hilo, un pool de hilos y los hilos virtuales de Java 21.
+sabes:
+- HTTP como usuario: GET, POST y códigos de estado (los servlets de AEM).
+- Leer y escribir ficheros (semana 11).
+- `TrackerService` (semana 11).
+nuevo:
+- El formato real de una petición y una respuesta HTTP.
+- `ServerSocket`, `Socket` y streams de entrada y salida.
+- Hilos, pools de hilos e hilos virtuales (Java 21).
+- `java.net.http.HttpClient` para generar carga.
+objetivos:
+- Ver en tu navegador una página servida por un programa tuyo de unas 50 líneas.
+- Medir peticiones por segundo con 1 hilo, con 10 y con hilos virtuales.
+- Consultar el informe semanal del tracker desde el navegador.
+tracker: El tracker responde por HTTP: `GET /hoy` y `GET /semana?fecha=...`.
+
+--- construir
+titulo: Un servidor HTTP en 50 líneas
+objetivo: Construir un servidor HTTP mínimo con sockets que lee la petición y responde a mano.
+reto:
+Crea `http.ServidorCrudo`, escuchando en el puerto 8080:
+
+1. Un bucle infinito de `accept()`.
+2. Lee la **línea de petición** (`GET /hola HTTP/1.1`) y las **cabeceras** hasta la línea vacía. Imprímelas por consola.
+3. Responde a mano:
+
+```
+HTTP/1.1 200 OK\r\n
+Content-Type: text/plain; charset=utf-8\r\n
+Content-Length: 19\r\n
+Connection: close\r\n
+\r\n
+¡Hola desde Java!
+```
+
+4. Rutas: `/hola` → texto; cualquier otra → `404 Not Found` con un mensaje.
+
+Pruébalo con el navegador y con `curl -v http://localhost:8080/hola`.
+hecho:
+- El navegador muestra tu texto, con la tilde y la ¡ bien.
+- `curl -v` muestra tus cabeceras exactas.
+- Una ruta inventada devuelve 404.
+minima:
+Responder "hola" a cualquier petición, sin leer las cabeceras.
+pista1:
+```java
+try (ServerSocket server = new ServerSocket(8080)) {
+    while (true) {
+        try (Socket s = server.accept()) {
+            BufferedReader in = new BufferedReader(
+                new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
+            String lineaPeticion = in.readLine();
+            String linea;
+            while ((linea = in.readLine()) != null && !linea.isEmpty()) { /* cabecera */ }
+            // responder...
+        }
+    }
+}
+```
+pista2:
+Escribe bytes, no texto: `byte[] cuerpo = texto.getBytes(StandardCharsets.UTF_8);` y en las cabeceras pon `Content-Length: ` + `cuerpo.length`. Envía primero las cabeceras (también con `getBytes`) y luego el cuerpo por `s.getOutputStream()`, y haz `flush()`.
+pista3:
+Trampa clásica: `Content-Length` cuenta **bytes**, no caracteres. "¡Hola desde Java!" tiene 17 caracteres, pero la `¡` ocupa 2 bytes en UTF-8: son 18 bytes, y 19 con un salto de línea al final. Si usas `texto.length()`, el navegador cortará el final. Por eso el ejemplo dice 19.
+
+--- medir
+titulo: Un hilo, diez hilos, hilos virtuales
+objetivo: Construir un generador de carga y medir cómo escala tu servidor con distintos modelos de hilos.
+reto:
+1. Simula trabajo lento: añade `Thread.sleep(50)` antes de responder (como si consultara una base de datos).
+2. Crea `http.Carga`: lanza N peticiones concurrentes con `HttpClient.sendAsync`, espera a todas y mide el tiempo total y las peticiones por segundo.
+3. Mide con N = 200 tres versiones del servidor:
+   - **(a)** un solo hilo: atiende dentro del bucle de `accept`.
+   - **(b)** `Executors.newFixedThreadPool(10)`: cada socket se atiende en el pool.
+   - **(c)** `Executors.newVirtualThreadPerTaskExecutor()`.
+hecho:
+- La tabla con el tiempo total y las peticiones por segundo de las 3 versiones.
+- Sabes calcular de antemano cuánto deberían tardar (a) y (b).
+- Una frase sobre qué cambia con los hilos virtuales.
+minima:
+Solo (a) frente a (c) con N = 50.
+pista1:
+```java
+HttpClient cliente = HttpClient.newBuilder()
+        .version(HttpClient.Version.HTTP_1_1).build();
+HttpRequest req = HttpRequest.newBuilder(URI.create("http://localhost:8080/hola")).build();
+List<CompletableFuture<HttpResponse<String>>> futuros = new ArrayList<>();
+for (int i = 0; i < n; i++)
+    futuros.add(cliente.sendAsync(req, HttpResponse.BodyHandlers.ofString()));
+CompletableFuture.allOf(futuros.toArray(new CompletableFuture[0])).join();
+```
+pista2:
+En (b) y (c), el bucle de `accept` no atiende: entrega el socket al executor. Ojo: el `try (Socket s = ...)` ya no puede estar en el bucle, porque cerraría el socket antes de que el otro hilo lo use. El `try` va dentro de la tarea: `Socket s = server.accept(); executor.submit(() -> atender(s));`.
+pista3:
+Cálculo: (a) 200 × 50 ms = 10 s. (b) 200 / 10 hilos × 50 ms = 1 s. (c) cada petición tiene su propio hilo virtual: unos 50-100 ms en total. Un hilo virtual que duerme o espera E/S no ocupa un hilo del sistema operativo, así que puedes tener miles. Es la gran novedad de Java 21 para servidores.
+
+--- aplicar
+titulo: El tracker en el navegador
+objetivo: Conectar tu servidor al TrackerService y servir el informe semanal con parámetros.
+reto:
+Con tu servidor (la versión con hilos virtuales) y el `TrackerService` de la semana 11:
+
+- `GET /hoy` → el estado de cada hábito hoy (texto).
+- `GET /semana?fecha=2026-12-07` → la tabla de la semana que contiene esa fecha.
+- `GET /semana` sin fecha → la semana actual.
+- Fecha inválida (`?fecha=ayer`) → `400 Bad Request` con un mensaje que explique el formato esperado.
+
+Parsea tú mismo la ruta y la query string, sin librerías.
+hecho:
+- Las 3 URL funcionan en el navegador.
+- `?fecha=ayer` devuelve 400 con un mensaje útil, y el servidor sigue vivo.
+- Una petición mal formada no tumba el servidor.
+minima:
+Solo `GET /semana` con la semana actual.
+pista1:
+Separa la ruta de la query: `String[] partes = objetivo.split("\\?", 2);`. La query son pares `clave=valor` separados por `&`. Decodifica cada valor con `URLDecoder.decode(valor, StandardCharsets.UTF_8)`.
+pista2:
+`LocalDate.parse("2026-12-07")` lanza `DateTimeParseException` si el formato es incorrecto: atrápala y responde 400. El lunes de esa semana es `fecha.with(DayOfWeek.MONDAY)`.
+pista3:
+Envuelve todo `atender(socket)` en un `try/catch (Exception e)` que responda 500. Así un error en una petición nunca tumba el servidor. Imprime el error en tu consola, pero nunca envíes la traza al cliente.
+
+--- explica
+reto:
+Explica qué viaja exactamente por el cable cuando escribes `localhost:8080/semana` en el navegador: línea de petición, cabeceras, línea vacía y cuerpo. ¿Por qué `Content-Length` cuenta bytes y no caracteres?
+guia:
+- Petición y respuesta, línea a línea (lo que viste en la consola y con curl).
+- `\r\n` y la línea vacía como separador.
+- UTF-8: caracteres frente a bytes (el ejemplo de la ¡).
+- Hilos: por qué un servidor de un solo hilo no escala (tus números).
+
+=== SEMANA 14
+bloque: 4
+titulo: API REST de lectura con HttpServer
+resumen: Pasas del socket crudo al HttpServer que trae el JDK y construyes tu propio router con parámetros de ruta. Tu tracker empieza a hablar JSON con tu propio serializador.
+sabes:
+- Tu servidor de sockets y tu generador de carga (semana 13).
+- Tu serializador JSON (semana 9).
+- `TrackerService` y los índices por fecha (semanas 8, 10 y 11).
+nuevo:
+- `com.sun.net.httpserver.HttpServer`, incluido en el JDK.
+- Diseño REST: recursos, verbos y códigos de estado.
+- Un router con parámetros de ruta: `/habitos/{id}`.
+- Latencia por percentiles: p50, p95 y p99.
+objetivos:
+- Tener un router propio que resuelve `/habitos/{id}/registros`.
+- Servir 4 endpoints GET en JSON.
+- Medir la latencia de tu API por percentiles.
+tracker: API REST de lectura: hábitos, registros por rango e informe semanal en JSON.
+
+--- construir
+titulo: Tu propio router
+objetivo: Construir un router que asocia método + patrón de ruta a un manejador, con parámetros de ruta.
+reto:
+```java
+public record Peticion(String metodo, String ruta, Map<String, String> params,
+                       Map<String, String> query, String cuerpo) {}
+public record Respuesta(int estado, Object cuerpo) {} // el cuerpo se serializa a JSON
+public interface Manejador { Respuesta manejar(Peticion p); }
+
+public final class Router {
+    public void registrar(String metodo, String patron, Manejador m) { ... }
+    public Respuesta resolver(String metodo, String ruta, ...) { ... }
+}
+```
+
+- `registrar("GET", "/habitos/{id}", ...)`: los segmentos entre llaves capturan su valor en `params`.
+- Si la ruta existe pero con otro método → **405**. Si no existe → **404**. Los dos con un cuerpo JSON `{"error": "..."}`.
+- Arranca un `HttpServer` con un único contexto `/` que delega en el router, con un executor de hilos virtuales.
+hecho:
+- `/habitos/gym` resuelve el patrón `/habitos/{id}` con `params.get("id")` igual a `"gym"`.
+- `DELETE /habitos` (no registrado) da 405 y `/nada` da 404.
+- Las respuestas llevan `Content-Type: application/json; charset=utf-8`.
+minima:
+Un router sin parámetros (coincidencia exacta de ruta) con un endpoint.
+pista1:
+```java
+HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
+server.createContext("/", exchange -> { /* router */ });
+server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+server.start();
+```
+El método sale de `exchange.getRequestMethod()`, la ruta de `exchange.getRequestURI().getPath()` y la query de `getRawQuery()`.
+pista2:
+Coincidencia: divide el patrón y la ruta por `/`. Si tienen distinto número de segmentos, no coinciden. Recorre segmento a segmento: si el del patrón empieza por `{`, guarda el valor; si no, los dos deben ser iguales.
+pista3:
+Enviar la respuesta:
+```java
+byte[] b = Json.escribir(r.cuerpo()).getBytes(StandardCharsets.UTF_8);
+exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+exchange.sendResponseHeaders(r.estado(), b.length);
+try (OutputStream os = exchange.getResponseBody()) { os.write(b); }
+```
+Para un 204 (sin cuerpo), pasa `-1` como longitud.
+
+--- medir
+titulo: La media miente: percentiles
+objetivo: Medir la latencia de tu API con percentiles y comparar el DAO en memoria con el de fichero.
+reto:
+1. Amplía tu `Carga` (semana 13) para guardar la latencia de **cada** petición (nanoTime al enviar y al recibir).
+2. Ordena las latencias y calcula p50, p95, p99 y el máximo.
+3. Lanza 2 000 peticiones, con 50 concurrentes, contra `GET /habitos/{id}/registros` con:
+   - el DAO en memoria
+   - el DAO de fichero (append-only, que relee el log en cada consulta)
+4. Compara la media con el p99.
+hecho:
+- La tabla de p50 / p95 / p99 / máximo / media de las dos configuraciones.
+- Sabes explicar qué significa "p99 = 40 ms".
+- Has encontrado la diferencia entre la media y el p99 en tus datos.
+minima:
+p50 y p99 de una sola configuración.
+pista1:
+Para limitar a 50 concurrentes, en lugar de lanzar las 2 000 a la vez, usa un `Semaphore(50)`: `acquire()` antes de enviar y `release()` cuando llega la respuesta (en `whenComplete`).
+pista2:
+Percentil p: ordena el array de latencias y coge la posición `(int) Math.ceil(p / 100.0 * n) - 1`. p99 significa "el 99 % de las peticiones tardó esto o menos".
+pista3:
+La media esconde los picos: 99 peticiones de 2 ms y 1 de 500 ms dan una media de 7 ms, pero ese usuario de 500 ms existe. En los juegos pasa igual: el DPS medio no te dice si mueres en el pico de daño del jefe. Las APIs serias se miden por su p99.
+
+--- aplicar
+titulo: Endpoints de lectura
+objetivo: Exponer el tracker en JSON con un diseño REST coherente.
+reto:
+Implementa con tu router:
+
+- `GET /habitos` → la lista de hábitos.
+- `GET /habitos/{id}` → un hábito, o **404** con `{"error": "No existe el hábito 'xyz'"}`.
+- `GET /habitos/{id}/registros?desde=2026-12-01&hasta=2026-12-31` → los registros del rango (usa tu `IndiceTemporal` de la semana 10). Sin fechas → los últimos 30 días.
+- `GET /informe/semana?fecha=2026-12-07` → por cada hábito: su objetivo, los días hechos y si lo ha cumplido.
+
+Pruébalos todos con `curl` y guarda los comandos en un fichero `api.http` o en tu libreta.
+hecho:
+- Los 4 endpoints devuelven JSON válido.
+- Las fechas inválidas devuelven 400, no 500.
+- Un `desde` posterior a `hasta` devuelve 400 con un mensaje claro (tu `Rango` ya lo valida).
+minima:
+`GET /habitos` y `GET /habitos/{id}` con su 404.
+pista1:
+Diseño REST: las URLs son **sustantivos** (recursos) y el verbo lo pone el método HTTP. `/habitos/{id}/registros` se lee como "los registros del hábito {id}". Evita cosas como `/getRegistros?habito=gym`.
+pista2:
+Reutiliza tu validación: si `new Rango<>(desde, hasta)` lanza `IllegalArgumentException`, conviértela en un 400 dentro del manejador. Haz lo mismo con `DateTimeParseException`.
+pista3:
+Para no repetir try/catch en cada manejador, captura las excepciones una sola vez en el router: `IllegalArgumentException` y `DateTimeParseException` → 400; `NoSuchElementException` → 404; cualquier otra → 500 sin detalles para el cliente.
+
+--- explica
+reto:
+Explica cómo has diseñado las URLs de tu API: por qué `/habitos/{id}/registros` y no `/getRegistrosDeHabito?id=gym`. ¿Qué significa cada código de estado que devuelves, y por qué ese y no otro?
+guia:
+- Recursos (sustantivos) y verbos HTTP.
+- Parámetros de ruta frente a parámetros de query: cuándo usar cada uno.
+- 200, 400, 404, 405 y 500: quién tiene la culpa en cada caso.
+- Tus percentiles: por qué el p99 y no la media.
+
+=== SEMANA 15
+bloque: 4
+titulo: Escribir en la API: parser JSON y errores
+resumen: Tu API aprende a recibir datos. Escribes un parser JSON recursivo (el mismo tipo de algoritmo que usan los compiladores), los endpoints de escritura y un manejo de errores digno de producción.
+sabes:
+- Pilas y el validador de paréntesis (semana 7).
+- Recursión y tu serializador (semana 9).
+- El router y los endpoints de lectura (semana 14).
+nuevo:
+- Parser recursivo descendente: leer JSON carácter a carácter.
+- POST, PUT y DELETE; la idempotencia.
+- Los códigos 201, 204, 400, 404, 409 y 422.
+- La cabecera `Location`.
+objetivos:
+- Que `parse(escribir(x))` devuelva x en estructuras anidadas.
+- Crear, modificar y borrar hábitos y registros por HTTP.
+- Que ningún error interno llegue al cliente con una traza.
+tracker: API REST completa de escritura (CRUD de hábitos y registros).
+
+--- construir
+titulo: Tu parser JSON
+objetivo: Escribir un parser JSON recursivo descendente que convierte texto en Map, List, String, Double, Boolean y null.
+reto:
+Crea `json.JsonParser`:
+
+```java
+public static Object parse(String texto)
+```
+
+Estructura: una clase con un `String s` y un índice `int pos`, y un método por cada regla de JSON:
+
+- `valor()`: mira el carácter actual y decide qué método llamar.
+- `objeto()`, `array()`, `cadena()`, `numero()` y `literal()` (true, false, null).
+- `saltarEspacios()`.
+
+Los errores lanzan una `JsonException` con la posición: `"Esperaba ':' en la posición 14"`.
+
+**Prueba de ida y vuelta:** con 5 estructuras distintas (una de ellas anidada a 3 niveles), comprueba que `parse(Json.escribir(x)).equals(x)`. Usa números `Double` en las pruebas, porque tu parser siempre devuelve Double.
+hecho:
+- Las 5 pruebas de ida y vuelta pasan.
+- `parse("{\"a\": }")` lanza una `JsonException` con una posición útil.
+- Los espacios y saltos de línea entre elementos no afectan.
+minima:
+Solo objetos planos con valores de texto y número (sin anidar ni arrays).
+pista1:
+Mira el carácter actual para decidir: `{` → objeto, `[` → array, `"` → cadena, `t`/`f`/`n` → literal, `-` o un dígito → número. Cada método consume su parte y deja `pos` justo después. La pila de llamadas lleva la cuenta del anidamiento: es tu validador de paréntesis, pero con la pila implícita.
+pista2:
+```java
+private Map<String, Object> objeto() {
+    esperar('{');
+    Map<String, Object> m = new LinkedHashMap<>();
+    saltarEspacios();
+    if (actual() == '}') { pos++; return m; }
+    while (true) {
+        saltarEspacios();
+        String clave = cadena();
+        saltarEspacios(); esperar(':');
+        m.put(clave, valor()); // valor() empieza saltando espacios
+        saltarEspacios();
+        if (actual() == ',') { pos++; continue; }
+        esperar('}');
+        return m;
+    }
+}
+```
+pista3:
+`numero()`: avanza mientras el carácter esté en `-+.eE0123456789` y después haz `Double.parseDouble(s.substring(inicio, pos))`. `cadena()`: usa un `StringBuilder`; si encuentras una `\`, mira el carácter siguiente (`"`, `\`, `n`, `t`…) y añade el carácter real. `\uXXXX` es una misión secundaria: `(char) Integer.parseInt(hex, 16)`.
+
+--- medir
+titulo: Velocidad de tu parser
+objetivo: Medir el rendimiento de tu parser en MB/s, encontrar su complejidad y aplicar una optimización medida.
+reto:
+1. Genera con tu serializador un JSON con 10 000 registros (cada uno, un objeto con 3 o 4 campos). Apunta su tamaño en KB.
+2. Mide cuántos **MB/s** parsea tu parser (con calentamiento).
+3. Pásale el Complejómetro duplicando el número de registros. Debería salir k ≈ 1; si sale más, tienes un O(n²) escondido.
+4. **Parche de rendimiento:** busca el método donde se va más tiempo (mide cada uno con contadores de nanoTime o comentando partes), optimízalo y vuelve a medir. Apunta el antes y el después.
+hecho:
+- Los MB/s de antes y después del parche, en la libreta.
+- k ≈ 1 confirmada.
+- Una frase que explica qué has optimizado y por qué ha funcionado.
+minima:
+Solo los pasos 1 y 2.
+pista1:
+Sospechosos habituales de un O(n²) escondido: concatenar con `+=` dentro de `cadena()` (semana 0), o hacer `s.substring(pos)` para mirar el resto del texto (copia todo el resto en cada llamada).
+pista2:
+Optimizaciones típicas: comparar caracteres con `s.charAt(pos)` en lugar de crear Strings; en `cadena()`, si no hay ninguna `\`, hacer un único `substring` al final en lugar de añadir carácter a carácter; reutilizar un único `StringBuilder`.
+pista3:
+Órdenes de magnitud orientativos: un parser sencillo como el tuyo suele estar entre 20 y 200 MB/s, y los parsers profesionales, entre 300 MB/s y más de 1 GB/s. No compites con ellos: lo importante es saber medir y saber por qué ayuda cada cambio.
+
+--- aplicar
+titulo: Endpoints de escritura
+objetivo: Implementar las operaciones de escritura de la API con los códigos de estado correctos.
+reto:
+- `POST /habitos` → crea. Responde **201** con el hábito y la cabecera `Location: /habitos/{id}`.
+  - JSON mal formado → **400**.
+  - Datos inválidos (nombre vacío, objetivo imposible) → **422**, con el mensaje de tu validación (semana 1).
+  - Ya existe uno con ese nombre → **409** (tu `CatalogoHabitos`, semana 1).
+- `PUT /habitos/{id}` → lo reemplaza entero (idempotente). 404 si no existe.
+- `DELETE /habitos/{id}` → **204** sin cuerpo. 404 si no existe.
+- `POST /habitos/{id}/registros` con `{"fecha": "2026-12-07", "valor": 1}` → marca y publica el evento (tus rachas de la semana 12 siguen funcionando).
+- `DELETE /habitos/{id}/registros/{fecha}` → desmarca.
+hecho:
+- Cada código de estado de la lista tiene un comando `curl` que lo provoca.
+- Repetir el mismo `PUT` dos veces deja el mismo estado (idempotencia).
+- Marcar 7 días seguidos por la API dispara el aviso de racha.
+minima:
+`POST /habitos` con 201 y 400, y `DELETE /habitos/{id}`.
+pista1:
+Con `curl`: `curl -i -X POST localhost:8080/habitos -H "Content-Type: application/json" -d '{"nombre":"Gym","objetivo":"DIAS_MINIMOS:4"}'`. La opción `-i` muestra el código de estado y las cabeceras.
+pista2:
+¿400 o 422? 400: no entiendo lo que me envías (JSON roto). 422: lo entiendo, pero los datos no son válidos para mi dominio. 409: es válido, pero choca con el estado actual (ya existe). Es una convención, no una ley: lo importante es que tu API sea coherente y que tu explicación lo justifique.
+pista3:
+Crea excepciones de dominio (`HabitoDuplicadoException`, `ValidacionException`) y tradúcelas a códigos en un único sitio del router. Así `TrackerService` no sabe nada de HTTP, y si mañana el tracker tuviera otra interfaz (consola, colas de mensajes), las reglas de negocio seguirían intactas.
+
+--- explica
+reto:
+Explica cómo sabe tu parser dónde termina un objeto anidado dentro de otro, sin contar llaves a mano. Después explica la diferencia entre 400, 404, 409 y 422 con ejemplos de tu API.
+guia:
+- Parser recursivo descendente: un método por cada regla de la gramática.
+- La pila de llamadas como pila implícita (tu validador de paréntesis de la semana 7).
+- Tu O(n²) escondido, si lo encontraste, y tu parche.
+- Errores del cliente: qué significa cada código y quién debe corregir qué.
+
+=== SEMANA 16
+bloque: 4
+titulo: Jefe final: Tracker v1.0
+resumen: Ensamblas todo, lo pruebas de extremo a extremo, haces un informe de rendimiento desglosado por capas y lo documentas como si lo fueras a presentar a tu equipo. La tabla de la semana 0, ahora servida por tu propia API.
+sabes:
+- Todo lo de las semanas 0 a 15.
+nuevo:
+- Pruebas de extremo a extremo (E2E) contra el servidor real.
+- Desglose de la latencia por capas.
+- Documentar decisiones de arquitectura con datos.
+objetivos:
+- Un único comando que levanta el servidor, lo prueba entero y te dice ✔ o ✘.
+- Saber qué capa de tu API consume más tiempo, con números.
+- Un README que podrías enseñar en una entrevista.
+tracker: Tracker v1.0: API completa, probada, medida y documentada.
+
+--- construir
+titulo: Pruebas de extremo a extremo
+objetivo: Probar la API completa contra un servidor real arrancado desde las propias pruebas.
+reto:
+Crea `PruebasApi`, que:
+
+1. Arranca tu servidor en un **puerto libre aleatorio** (`new InetSocketAddress(0)` y después `server.getAddress().getPort()`) con el DAO en memoria.
+2. Con `HttpClient` y tu parser JSON, ejecuta un escenario completo:
+   - crea 4 hábitos (dormir, comer bien, gym, dientes)
+   - marca una semana de registros variada
+   - comprueba el informe semanal (quién cumple y quién no)
+   - intenta crear un duplicado (409) y un hábito inválido (422), y pide uno inexistente (404)
+   - desmarca un día y comprueba que el informe cambia
+   - borra un hábito (204) y comprueba que ya no aparece
+3. Para el servidor e imprime el resumen de `Check`.
+hecho:
+- Un solo `main` ejecuta todo el escenario y termina con 0 fallos.
+- Las pruebas no dependen de datos de ejecuciones anteriores (DAO en memoria y puerto aleatorio).
+- Al menos 20 checks.
+minima:
+3 escenarios: crear, listar y pedir uno inexistente (404).
+pista1:
+Saca el arranque del servidor a un método `static HttpServer arrancar(int puerto, TrackerService servicio)` que usen tanto `Main` como `PruebasApi`. Así pruebas exactamente el mismo código que ejecutas.
+pista2:
+Crea un pequeño ayudante, `Object llamar(String metodo, String ruta, String cuerpoJson, int estadoEsperado)`, que hace la petición, comprueba el estado con `Check` y devuelve el cuerpo ya parseado. Tus pruebas quedarán cortas y legibles.
+pista3:
+Llama a `server.stop(0)` al final. Si una prueba falla a mitad, usa `try/finally` para parar el servidor igualmente: si no, el proceso se queda vivo con el puerto ocupado.
+
+--- medir
+titulo: Informe de rendimiento v1.0
+objetivo: Medir la API completa bajo carga y desglosar la latencia por capas, como un desglose de daño por habilidad.
+reto:
+1. Carga mixta con tu `Carga`: 5 000 peticiones, 50 concurrentes, 80 % GET y 20 % POST.
+2. Apunta las peticiones por segundo, p50, p95 y p99, con el DAO en memoria y con el de fichero.
+3. **Desglose por capas:** mide con `nanoTime` cuánto tiempo pasa cada petición en el parseo JSON, el router, `TrackerService`, el DAO y la serialización. Acumula por capa e imprime el porcentaje del total.
+4. Escribe 5 líneas de conclusiones: ¿dónde está el cuello de botella? ¿Qué optimizarías primero?
+hecho:
+- La tabla de rendimiento de las dos configuraciones.
+- El desglose por capas en porcentaje.
+- 5 conclusiones apoyadas en tus números.
+minima:
+Peticiones por segundo y p99 de una configuración.
+pista1:
+Para el desglose, usa contadores estáticos `LongAdder` por capa (son seguros con varios hilos): `Metricas.dao.add(System.nanoTime() - t0)`. Al final, imprime cada uno dividido entre el total.
+pista2:
+Lo esperable: con el DAO en memoria, la mayor parte del tiempo se va en la red y en el propio HttpServer, y tu código es una fracción pequeña. Con fichero, el DAO domina, sobre todo en los POST. Si no ves esto, investiga: puede ser un hallazgo interesante.
+pista3:
+Si el DAO de fichero es el cuello de botella, tienes tres palancas conocidas: append-only en lugar de reescritura (semana 11), un índice en memoria para las lecturas (semanas 8 y 10) y agrupar escrituras. Elige una, aplícala y vuelve a medir.
+
+--- aplicar
+titulo: Lanzamiento
+objetivo: Documentar el tracker como un proyecto profesional y cerrar el círculo con la tabla de la semana 0.
+reto:
+1. `GET /informe/semana?fecha=...&formato=texto` devuelve **la misma tabla de la semana 0**, generada ahora con datos reales desde tu API. Ponla al lado de tu copia de entonces.
+2. `README.md` con:
+   - un diagrama ASCII de las capas: HttpServer → Router → Manejadores → TrackerService → DAO → ficheros, y BusEventos → oyentes
+   - una tabla de endpoints con un ejemplo de `curl` para cada uno
+   - **decisiones de diseño con datos:** qué estructura usaste en cada sitio y por qué, citando tus números (por ejemplo: "TreeMap en IndiceTemporal: los datos llegan ordenados; con mi árbol simple la altura era 365")
+   - tus resultados de rendimiento
+3. Repasa tu libreta y escribe en "Qué me queda por estudiar" de esta semana los 5 temas que más te apetece profundizar.
+hecho:
+- La tabla de la semana 0 sale de tu API.
+- El README tiene las 4 secciones y al menos 5 decisiones con números.
+- Podrías explicar cualquier línea del proyecto sin mirar nada.
+minima:
+El paso 1 y el diagrama de capas.
+pista1:
+Para el formato texto, reutiliza tu `InformeSemanal` (semana 2): el manejador mira `query.get("formato")` y devuelve JSON o texto con `Content-Type: text/plain`.
+pista2:
+Un buen diagrama ASCII:
+```
+cliente ─HTTP─► HttpServer ─► Router ─► Manejador ─► TrackerService ─► HabitoDao ─► datos/*.csv
+                                                         │
+                                                         └─► BusEventos ─► RachaOyente, LogroOyente, AuditoriaOyente
+```
+pista3:
+Para las decisiones de diseño usa este formato: **Decisión** (qué elegiste), **Alternativas** (qué descartaste), **Datos** (tu medición) y **Consecuencia** (qué ganas y qué pagas). Es el formato de los ADR (Architecture Decision Records) que se usan en muchas empresas.
+
+--- explica
+reto:
+Presenta la arquitectura completa de tu tracker como si se la contaras a tu equipo en 5 minutos: desde el byte que entra por el socket hasta la línea que se escribe en el fichero, y por qué elegiste cada estructura de datos, con tus números.
+guia:
+- El viaje de una petición POST por todas las capas.
+- Tres decisiones de estructuras de datos, con sus números.
+- El cuello de botella que encontraste y qué harías con él.
+- Qué sabes hacer ahora que no sabías hacer en la semana 0.
+
+=== SEMANA 17
+bloque: 5
+opcional: si
+titulo: Microservicios: parte el tracker en dos
+resumen: Semana opcional. Separas el tracker en dos servicios que hablan por HTTP, mides lo que cuesta la red y aprendes a fallar con elegancia cuando el otro servicio no responde.
+sabes:
+- Tu API completa (semanas 14 a 16).
+- `HttpClient` y tu generador de carga (semana 13).
+- Eventos y oyentes (semana 12).
+nuevo:
+- Qué es (y qué no es) un microservicio: datos y despliegue independientes.
+- Llamadas entre servicios por HTTP.
+- Timeouts, reintentos y respuestas degradadas.
+- Notificación de eventos entre procesos (webhooks).
+objetivos:
+- Dos servicios, en dos procesos, que colaboran.
+- Medir el coste de la red frente al monolito.
+- Que apagar un servicio no tumbe al otro.
+tracker: Tracker distribuido: servicio de hábitos + servicio de estadísticas.
+
+--- construir
+titulo: Dos servicios, dos procesos
+objetivo: Separar el tracker en un servicio de hábitos y otro de estadísticas que se comunican por HTTP.
+reto:
+- **servicio-habitos** (puerto 8081): hábitos y registros, con sus propios ficheros. Es el dueño de esos datos.
+- **servicio-estadisticas** (puerto 8082): `GET /rachas` y `GET /informe/semana`. No tiene acceso a los ficheros del otro: le pide los datos a 8081 por HTTP con `HttpClient`.
+
+Cada uno tiene su propio `main` y se arranca por separado. Reutiliza tu router, tu JSON y tus DAO.
+hecho:
+- Los dos procesos arrancan por separado y `GET :8082/rachas` devuelve datos reales de 8081.
+- servicio-estadisticas no importa ninguna clase DAO.
+- Puedes reiniciar uno sin reiniciar el otro.
+minima:
+servicio-estadisticas con un solo endpoint que llama a `GET :8081/habitos`.
+pista1:
+Organízalo en los paquetes `habitos` y `estadisticas`, más un paquete `comun` (router, JSON, `Check`). Los dos `main` están en el mismo proyecto, pero se lanzan como procesos distintos (dos configuraciones de ejecución en IntelliJ).
+pista2:
+Un microservicio de verdad es dueño de sus datos: si estadísticas leyera los ficheros de hábitos, tendrías un monolito distribuido (lo peor de los dos mundos). Toda la comunicación pasa por la API.
+pista3:
+Crea en estadísticas un `ClienteHabitos` que encapsule las llamadas HTTP y el parseo: `List<Map<String, Object>> registros(String habitoId, LocalDate desde, LocalDate hasta)`. Si mañana cambia la API de hábitos, solo cambia esa clase (el mismo principio que el DAO de la semana 11).
+
+--- medir
+titulo: El precio de la red
+objetivo: Medir cuánta latencia añade partir el sistema y qué pasa cuando un servicio cae.
+reto:
+1. Con tu `Carga`, compara p50 y p99 de `GET /informe/semana` en el monolito (semana 16) y en el sistema distribuido.
+2. **Apaga servicio-habitos** y llama a `:8082/informe/semana`:
+   - sin timeout: ¿cuánto tarda en fallar?
+   - con `HttpRequest.newBuilder(...).timeout(Duration.ofMillis(500))`
+3. Simula un servicio lento: `Thread.sleep(2000)` en un endpoint de 8081. ¿Qué pasa con las peticiones a 8082?
+hecho:
+- La tabla de monolito frente a distribuido (p50 y p99).
+- El tiempo hasta el error, con y sin timeout.
+- Sabes qué es un fallo en cascada.
+minima:
+Solo el punto 1.
+pista1:
+Con el proceso apagado, la conexión se rechaza al instante (`ConnectException`). Lo peligroso no es un servicio caído sino un servicio **lento**: sin timeout, cada petición a 8082 se queda esperando, se acumulan y acabas tumbando también 8082. Eso es un fallo en cascada.
+pista2:
+Configura dos timeouts: el de conexión (`HttpClient.newBuilder().connectTimeout(...)`) y el de la petición completa (`HttpRequest...timeout(...)`). Cuando expira, `HttpClient` lanza `HttpTimeoutException`.
+pista3:
+Lo habitual es que cada salto de red local añada entre 0,5 y 2 ms al p50, y bastante más al p99. Con 5 servicios encadenados, eso se multiplica. Es el coste real que pagas por la independencia de despliegue.
+
+--- aplicar
+titulo: Fallar con elegancia
+objetivo: Hacer que servicio-estadisticas sobreviva a los fallos de servicio-habitos.
+reto:
+1. **Timeout + 1 reintento** con una espera de 100 ms en `ClienteHabitos`.
+2. **Respuesta degradada:** si hábitos no responde, `GET /rachas` devuelve **503** con `{"error": "El servicio de hábitos no está disponible", "reintentar_en_s": 5}` en lugar de quedarse colgado o devolver un 500.
+3. **Caché del último valor conocido:** si falla, devuelve las últimas rachas calculadas con un campo `"desactualizado": true`.
+4. **Misión secundaria:** webhooks. servicio-habitos avisa con `POST :8082/eventos` cada vez que se marca un hábito (tu Observer de la semana 12, pero entre procesos), y estadísticas actualiza las rachas sin tener que preguntar.
+hecho:
+- Con servicio-habitos apagado, `:8082/rachas` responde en menos de 1 s.
+- La respuesta degradada lleva el código y el JSON correctos.
+- Cuando vuelves a arrancar servicio-habitos, todo se recupera solo.
+minima:
+Solo el timeout y la respuesta 503.
+pista1:
+Un reintento sirve para fallos momentáneos, pero reintentar sin límite contra un servicio sobrecargado lo empeora. Por eso: pocos reintentos, con espera entre ellos y siempre con timeout.
+pista2:
+La caché del último valor: un campo `volatile Map<String, Object> ultimasRachas` que actualizas cada vez que el cálculo sale bien. En el `catch`, si no es null, lo devuelves con `"desactualizado": true`.
+pista3:
+Con los webhooks inviertes la dependencia: estadísticas ya no pregunta, le avisan. Pero aparece un problema nuevo: ¿y si estadísticas está caído cuando llega el aviso? Las soluciones reales (colas de mensajes como Kafka o RabbitMQ) usan algo que ya conoces: un log append-only (semana 11).
+
+--- explica
+reto:
+¿Cuándo NO usarías microservicios para algo como tu tracker? Argumenta con tus números de latencia y con lo que pasó al apagar un servicio.
+guia:
+- Qué ganas: despliegue y escalado independientes, equipos independientes.
+- Qué pagas: red, latencia, fallos parciales y complejidad (tus números).
+- Fallos en cascada, timeouts y respuestas degradadas.
+- Tu veredicto para el tracker, y en qué situación cambiaría.

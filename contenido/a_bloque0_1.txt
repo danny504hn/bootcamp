@@ -1,0 +1,540 @@
+=== SEMANA 00
+bloque: 0
+titulo: Tutorial: tu banco de pruebas
+resumen: Antes de entrar en el juego montas tus herramientas: un sistema de comprobaciones propio y tu medidor de daño. Las usarás todas las semanas.
+sabes:
+- Crear clases, métodos estáticos y bucles.
+- Usar el IDE y ejecutar un `main`.
+nuevo:
+- Medir tiempos con `System.nanoTime` sin engañarte (calentamiento del JIT).
+- Comprobar tu código sin JUnit, con una clase tuya.
+- Implementar una interfaz de un solo método con una lambda.
+objetivos:
+- Tener un proyecto `rotacion` con los paquetes `herramientas` y `tracker`.
+- Poder escribir `Check.igual(4, suma(2, 2), "suma")` y ver ✔ o ✘.
+- Saber por qué la primera medición de un programa Java casi siempre miente.
+tracker: Documento de diseño del tracker y la tabla semanal impresa por consola (versión 0, con datos inventados).
+
+--- construir
+titulo: Tu propio Check (sustituto de JUnit)
+objetivo: Crear una clase que te diga ✔ o ✘ al comprobar resultados, con mensajes claros cuando algo falla.
+reto:
+Prepara el terreno y construye tu primera herramienta.
+
+1. Crea un proyecto Java 21 en IntelliJ **sin Maven ni Gradle** llamado `rotacion`, con los paquetes `herramientas`, `tracker` y `semana00`.
+2. Desactiva la IA del IDE para las sesiones: en *Settings*, busca **inline completion** y desactiva la finalización de líneas completas (*Full Line Code Completion*), y también AI Assistant o Copilot si los tienes. El autocompletado clásico de nombres de métodos puede quedarse.
+3. Crea `herramientas.Check` con estos métodos estáticos:
+
+```java
+public static void igual(Object esperado, Object real, String nombre)
+public static void verdadero(boolean condicion, String nombre)
+public static void resumen() // imprime "12 pasadas, 1 fallida"
+```
+
+Cada comprobación imprime una línea. Si falla, la línea dice qué esperabas y qué obtuviste:
+
+```
+✔ suma(2, 2)
+✘ suma(2, 3): esperaba 5, obtuve 6
+```
+
+4. En `semana00.CheckDemo` escribe un `main` con 3 comprobaciones que pasen y 1 que falle a propósito.
+hecho:
+- `CheckDemo` imprime 3 ✔, 1 ✘ con el mensaje esperado/obtenido y un resumen final.
+- `Check.igual(null, null, ...)` pasa sin lanzar `NullPointerException`.
+- Comparar dos `String` iguales creados por separado (`new String("a")`) pasa.
+minima:
+Solo `igual` y `resumen`, sin formato bonito. Unos 15 minutos.
+pista1:
+Necesitas dos contadores `static int` dentro de `Check` (pasadas y fallidas). Cada método suma a uno de ellos y escribe su línea.
+pista2:
+Para comparar usa `java.util.Objects.equals(esperado, real)`: compara con `equals` y además maneja `null` en los dos lados. Si usas `==`, comparas direcciones de memoria, no contenido (lo verás a fondo en la semana 1).
+pista3:
+```java
+public final class Check {
+    private static int pasadas, fallidas;
+
+    public static void igual(Object esperado, Object real, String nombre) {
+        if (Objects.equals(esperado, real)) {
+            pasadas++;
+            System.out.println("✔ " + nombre);
+        } else {
+            fallidas++;
+            System.out.println("✘ " + nombre + ": esperaba " + esperado + ", obtuve " + real);
+        }
+    }
+    // verdadero(...) y resumen() siguen el mismo patrón
+}
+```
+
+--- medir
+titulo: Tu medidor de daño (Bench)
+objetivo: Construir una herramienta que mida cuánto tarda un trozo de código de forma fiable, y usarla para comparar `+=` con `StringBuilder`.
+reto:
+Crea `herramientas.Tarea` (una interfaz con un único método `void ejecutar();`) y `herramientas.Bench` con:
+
+```java
+public static void medir(String nombre, int calentamiento, int repeticiones, Tarea tarea)
+```
+
+- Ejecuta la tarea `calentamiento` veces **sin medir** (para que el JIT compile el código).
+- Ejecuta `repeticiones` veces midiendo cada una con `System.nanoTime()`.
+- Imprime mínimo, mediana y máximo en milisegundos con 3 decimales.
+
+Como `Tarea` tiene un solo método, puedes pasarla como lambda: `Bench.medir("concat", 3, 10, () -> concatenar(20_000));`
+
+**Experimento:** construir un `String` con los números de 0 a n usando `s += i` frente a `StringBuilder.append(i)`, con n = 10 000, 20 000 y 40 000. Apunta los 6 resultados en tu libreta.
+
+**Trampa del optimizador:** si el resultado no se usa, el JIT puede eliminar el código y medirás casi 0 ms. Guarda algo del resultado (por ejemplo, la longitud) en un campo `static long sumidero`.
+hecho:
+- `Bench` imprime algo como `concat n=20000 → min 41.2 · mediana 43.9 · max 60.1 ms`.
+- Tienes los 6 números apuntados en la libreta (en "Mis números").
+- Puedes decir cuántas veces más tarda `+=` cuando n se duplica.
+minima:
+Sin la clase `Bench`: mide una sola vez `+=` y `StringBuilder` con n = 20 000 usando `System.nanoTime()` antes y después, y apunta los dos números.
+pista1:
+La mediana es el valor central tras ordenar: guarda los tiempos en un `long[]`, usa `Arrays.sort` y coge el elemento `repeticiones / 2`. Es mejor que la media porque una pausa del recolector de basura no la estropea.
+pista2:
+Para pasar de nanosegundos a milisegundos con decimales: `nanos / 1_000_000.0` (fíjate en el `.0`: sin él es división entera). Para imprimir: `System.out.printf("%s → min %.3f ms%n", nombre, min);`
+pista3:
+Lo que deberías ver: con `+=` el tiempo se multiplica por unas 4 veces cada vez que n se duplica, y con `StringBuilder` por unas 2. Cada `+=` crea un `String` nuevo copiando todo el anterior, así que copias 1 + 2 + 3 + … + n trozos. Eso es crecimiento cuadrático, y en la semana 5 aprenderás a demostrarlo.
+
+--- aplicar
+titulo: Tracker v0: el diseño y la primera tabla
+objetivo: Decidir qué hará tu tracker al final del bootcamp e imprimir su primera tabla semanal por consola.
+reto:
+**Parte 1. Documento de diseño (10 min).** En `tracker/DISENO.md` escribe:
+
+- Tus hábitos y **cómo se mide cada uno**: dientes (sí/no, todos los días), gym (sí/no, objetivo 4 días por semana), dormir (horas, media ≥ 7 h), comer bien (sí/no, objetivo 5 días)… y los que quieras añadir.
+- 5 preguntas que quieres que el tracker te responda en el futuro (por ejemplo: "¿cuál es mi racha actual de gym?").
+
+**Parte 2. La tabla (20 min).** En `tracker.Main`, con un `String[] habitos` y un `boolean[][] hecho` (filas = hábitos, columnas = días) con datos inventados, imprime:
+
+```
+Hábito        L  M  X  J  V  S  D   Total
+Dientes       ✔  ✔  ·  ✔  ✔  ✔  ✔   6/7
+Gym           ✔  ·  ✔  ·  ✔  ·  ·   3/7
+Comer bien    ✔  ✔  ✔  ·  ✔  ✔  ·   5/7
+```
+
+Guarda una copia de esta salida: en la semana 16 la misma tabla saldrá de tu propia API REST.
+hecho:
+- `DISENO.md` existe con los hábitos, cómo se mide cada uno y 5 preguntas.
+- La tabla sale alineada aunque los nombres tengan longitudes distintas.
+- La columna Total se calcula, no está escrita a mano.
+minima:
+Solo la tabla, sin el documento de diseño (lo puedes hacer otro día).
+pista1:
+Recorre con dos bucles anidados: el de fuera para cada hábito (fila) y el de dentro para cada día (columna). Ve contando los `true` de la fila para el total.
+pista2:
+Para alinear usa `printf` con ancho fijo: `%-12s` imprime un texto ocupando 12 caracteres, alineado a la izquierda. Ejemplo: `System.out.printf("%-12s", habitos[i]);`
+pista3:
+```java
+for (int i = 0; i < habitos.length; i++) {
+    System.out.printf("%-12s", habitos[i]);
+    int total = 0;
+    for (int d = 0; d < 7; d++) {
+        System.out.print(hecho[i][d] ? "  ✔" : "  ·");
+        if (hecho[i][d]) total++;
+    }
+    System.out.printf("   %d/7%n", total);
+}
+```
+
+--- explica
+reto:
+Explícale a un compañero por qué medir una sola vez con `System.nanoTime()` puede mentirte, y cómo lo resuelve tu `Bench`.
+guia:
+- Qué hace el JIT con el código que se ejecuta muchas veces (del intérprete a código compilado).
+- Por qué la primera ejecución suele ser la más lenta.
+- Por qué usas la mediana y no la media.
+- Qué es la trampa del optimizador y para qué sirve tu `sumidero`.
+
+=== SEMANA 01
+bloque: 1
+titulo: Objetos por dentro: memoria e invariantes
+resumen: Ya sabes escribir clases. Esta semana ves qué ocurre en memoria cuando creas un objeto y por qué un objeto bien diseñado no puede quedar en un estado inválido.
+sabes:
+- Escribir una clase con constructor, getters, `equals`, `hashCode` y `toString`.
+- Usar `List` y `Set`.
+nuevo:
+- Stack frente a heap: qué guarda realmente una variable de tipo objeto.
+- Invariantes e inmutabilidad: objetos que no pueden ser inválidos.
+- Cuánto pesa un objeto frente a un primitivo (boxing).
+- Qué pasa dentro de un `HashSet` cuando `equals` y `hashCode` no cuadran.
+objetivos:
+- Dibujar en papel el stack y el heap de un programa de 10 líneas.
+- Hacer imposible crear un `Habito` inválido.
+- Saber cuántos bytes ocupa un `Integer` frente a un `int`, con tu propia medición.
+tracker: `Habito` y `Registro` inmutables con validación, y `CatalogoHabitos` sin duplicados.
+
+--- construir
+titulo: Habito y Registro: objetos que no pueden romperse
+objetivo: Crear las dos clases base del tracker de forma que sea imposible construirlas con datos inválidos.
+reto:
+En el paquete `tracker` crea:
+
+**`Habito`** (inmutable: todos los campos `private final`, sin setters):
+
+- `id` (String), `nombre` (String), `tipo` (enum `TipoMedida { SI_NO, CANTIDAD }`), `objetivoSemanal` (int).
+- El constructor lanza `IllegalArgumentException` con un mensaje útil si el nombre es nulo, está en blanco o supera 30 caracteres, o si el objetivo no está entre 1 y 7.
+- Guarda el nombre sin espacios sobrantes (`trim`).
+- Método `conObjetivo(int nuevo)` que **devuelve un `Habito` nuevo** en lugar de modificar el actual.
+- Getters con estilo moderno: `nombre()` en lugar de `getNombre()` (es el estilo de los records de Java, que verás en la semana 12).
+
+**`Registro`** (inmutable): `habitoId`, `fecha` (`java.time.LocalDate`) y `valor` (double: 1 o 0 para sí/no, horas para dormir). Lanza excepción si el valor es negativo o la fecha es nula.
+
+Con tu `Check`, escribe al menos 6 comprobaciones en `semana01.PruebasHabito`, incluidos casos que **deben** lanzar excepción.
+hecho:
+- `new Habito("h1", "  ", ...)` lanza una excepción con un mensaje claro.
+- `conObjetivo(5)` devuelve otro objeto y el original no cambia (compruébalo).
+- Tienes al menos 6 checks y todos pasan.
+minima:
+Solo `Habito` con la validación del nombre y del objetivo, y 3 checks.
+pista1:
+Un invariante es una regla que se cumple siempre durante la vida del objeto. Si los campos son `final` y el constructor es la única puerta de entrada, basta con validar en el constructor: una vez creado, el objeto ya no puede volverse inválido.
+pista2:
+```java
+if (nombre == null || nombre.isBlank())
+    throw new IllegalArgumentException("El nombre no puede estar vacío");
+if (objetivoSemanal < 1 || objetivoSemanal > 7)
+    throw new IllegalArgumentException("Objetivo fuera de rango (1-7): " + objetivoSemanal);
+```
+Para `conObjetivo`: `return new Habito(id, nombre, tipo, nuevo);`. Así reutilizas la validación del constructor.
+pista3:
+Para comprobar que algo lanza excepción con tu `Check`:
+```java
+try {
+    new Habito("h1", "", TipoMedida.SI_NO, 3);
+    Check.verdadero(false, "nombre vacío debería fallar");
+} catch (IllegalArgumentException e) {
+    Check.verdadero(true, "nombre vacío falla: " + e.getMessage());
+}
+```
+
+--- medir
+titulo: ¿Cuánto pesa un objeto?
+objetivo: Medir con tus propios números la diferencia de memoria y velocidad entre `int[]` e `Integer[]`, y descubrir la caché de Integer.
+reto:
+**Experimento 1: memoria.** Mide cuánta memoria ocupan:
+
+- `int[1_000_000]` relleno con 0..n
+- `Integer[1_000_000]` relleno con `Integer.valueOf(i)`
+- `ArrayList<Integer>` con 1 000 000 de elementos
+
+Usa `Runtime rt = Runtime.getRuntime();` y la memoria usada, `rt.totalMemory() - rt.freeMemory()`, antes y después de crear cada estructura. Calcula **bytes por elemento**.
+
+**Experimento 2: velocidad.** Con tu `Bench`, suma todos los elementos del `int[]` y del `Integer[]`. ¿Cuántas veces más lento es el segundo?
+
+**Experimento 3: mecánica oculta.** Ejecuta esto e intenta explicar el resultado antes de abrir las pistas:
+
+```java
+Integer a = 127, b = 127;
+Integer c = 128, d = 128;
+System.out.println(a == b); // ?
+System.out.println(c == d); // ?
+```
+hecho:
+- Tienes los bytes por elemento de las 3 estructuras apuntados en la libreta.
+- Sabes cuántas veces más lento es sumar un `Integer[]`.
+- Sabes explicar por qué `a == b` es true y `c == d` es false.
+minima:
+Solo el experimento 1 con `int[]` frente a `Integer[]`, apuntando los MB.
+pista1:
+Llama a `System.gc()` antes de cada lectura de memoria para reducir el ruido (es una sugerencia a la JVM, no una orden: repite la medición 3 veces). Y usa el array **después** de medir (imprime su longitud, por ejemplo): si no, la JVM puede liberarlo antes de tiempo.
+pista2:
+Lo esperable en una JVM de 64 bits normal: un `int` ocupa 4 bytes. Un `Integer` es un objeto: 12 bytes de cabecera + 4 del valor = 16 bytes, más los 4 bytes de la referencia en el array. Unos 20 bytes frente a 4: ×5. En velocidad, cada acceso al `Integer[]` es un salto a otra zona de memoria.
+pista3:
+`Integer a = 127` usa por debajo `Integer.valueOf(127)`, que devuelve objetos **cacheados** entre -128 y 127. Por eso `a` y `b` son el mismo objeto (`==` compara referencias). 128 está fuera de la caché: son dos objetos distintos con el mismo valor. Moraleja: con objetos, compara siempre con `equals`.
+
+--- aplicar
+titulo: El bug del duplicado
+objetivo: Construir un catálogo de hábitos sin duplicados y entender qué pasa dentro de un `HashSet` cuando `equals` y `hashCode` fallan.
+reto:
+**Parte 1. Reproduce el bug.** Crea dos `Habito` con el mismo nombre ("Gym") y distinto id, y mételos en un `HashSet` **sin** haber sobrescrito `equals` ni `hashCode`. ¿Cuántos elementos tiene el set?
+
+**Parte 2. Decide la identidad.** En el tracker, dos hábitos son el mismo si tienen el mismo nombre sin importar mayúsculas ni espacios ("Gym" = " gym "). Implementa `equals` y `hashCode` según esa regla.
+
+**Parte 3. Rompe un HashSet a propósito.** Crea una clase `HabitoMutable` con un `setNombre` y `equals`/`hashCode` basados en el nombre. Métela en un `HashSet`, cambia su nombre y comprueba `set.contains(h)`. Explica el resultado.
+
+**Parte 4. Pieza del tracker.** `CatalogoHabitos` con `agregar(Habito)` (lanza excepción si ya existe uno con el mismo nombre normalizado), `buscarPorNombre(String)` y `todos()`.
+hecho:
+- El set de la parte 1 tiene 2 elementos; después de la parte 2 tiene 1.
+- En la parte 3, `contains` devuelve false aunque el objeto **está dentro** del set, y sabes por qué.
+- `CatalogoHabitos` rechaza "GYM" si ya existe "Gym" (con un check).
+minima:
+Solo las partes 1 y 2.
+pista1:
+Un `HashSet` primero usa `hashCode()` para elegir una "cubeta" y luego compara con `equals()` solo dentro de esa cubeta. Si dos objetos son iguales según `equals` pero dan un `hashCode` distinto, caen en cubetas distintas y el set nunca llega a compararlos.
+pista2:
+Calcula una vez en el constructor una clave normalizada, `nombre.trim().toLowerCase()`, y guárdala en un campo `final`. Usa ese campo en `equals` y en `hashCode` (`clave.hashCode()`). Así los dos métodos usan exactamente la misma regla.
+pista3:
+En la parte 3, el objeto se guardó en la cubeta calculada con el nombre **viejo**. Al cambiar el nombre, `contains` calcula el hash del nombre **nuevo** y busca en otra cubeta, donde no está. El objeto se queda "perdido" dentro del set. Por eso las claves de un `HashSet` o un `HashMap` deberían ser inmutables, y por eso tu `Habito` lo es.
+
+--- explica
+reto:
+Explícale a un compañero qué hay realmente dentro de una variable `Habito h`, y por qué `h1 == h2` puede ser false aunque los dos tengan exactamente los mismos datos. Bonus: por qué `Integer a = 128, b = 128; a == b` da false.
+guia:
+- Qué vive en el stack y qué vive en el heap.
+- Qué es una referencia, y qué compara `==`.
+- Qué compara `equals` y quién decide qué significa "igual".
+- La caché de `Integer` como ejemplo de la trampa.
+
+=== SEMANA 02
+bloque: 1
+titulo: Interfaces y polimorfismo: el porqué
+resumen: Ya sabes usar interfaces. Esta semana descubres por qué existen: cómo decide Java qué método ejecutar, cuánto cuesta y por qué se prefiere la composición a la herencia.
+sabes:
+- Declarar una interfaz y varias implementaciones.
+- Usar una lista del tipo de la interfaz (polimorfismo).
+nuevo:
+- Despacho dinámico: la JVM elige el método en tiempo de ejecución.
+- Composición frente a herencia.
+- Principio abierto/cerrado: añadir comportamiento sin tocar código que ya funciona.
+- Qué hace el JIT con una llamada polimórfica (inlining).
+objetivos:
+- Que cada hábito tenga su propia regla de "objetivo cumplido" sin ningún if/else por tipo.
+- Añadir un tipo de objetivo nuevo sin modificar ninguna clase existente.
+- Saber, con números, cuándo una llamada polimórfica cuesta algo y cuándo no.
+tracker: Interfaz `Objetivo` con 4 reglas distintas, e `InformeSemanal` que dice si cada hábito ha cumplido.
+
+--- construir
+titulo: La interfaz Objetivo
+objetivo: Modelar las reglas de cada hábito (todos los días, N días, media mínima…) como implementaciones de una interfaz.
+reto:
+En `tracker`, crea:
+
+```java
+public interface Objetivo {
+    boolean cumplido(List<Registro> semana);
+    String describir(); // "4 días por semana"
+}
+```
+
+Implementaciones:
+
+- `DiasMinimos(int n)`: al menos n días con valor > 0 (gym: 4).
+- `Diario`: los 7 días (dientes).
+- `MediaMinima(double minimo)`: la media de los valores es ≥ mínimo (dormir: 7.0).
+- `MaximoDias(int n)`: como mucho n días con valor > 0 (comida basura: 2).
+
+Cambia `Habito` para que tenga un `Objetivo` en lugar del `int objetivoSemanal`. Fíjate: el hábito **tiene** un objetivo (composición), no **es** un tipo de hábito (herencia).
+
+Escribe checks con semanas de prueba inventadas para cada implementación.
+hecho:
+- Las 4 implementaciones tienen al menos 2 checks cada una (una semana que cumple y otra que no).
+- `Habito` ya no tiene `objetivoSemanal`: tiene un `Objetivo`.
+- No hay ningún `instanceof` ni if/else por tipo de hábito.
+minima:
+La interfaz con `DiasMinimos` y `Diario`, y 2 checks.
+pista1:
+Cada implementación solo responde a una pregunta: ¿esta semana cuenta? Recorre la lista, cuenta o suma, y compara con su parámetro. El parámetro (n, mínimo) se guarda en un campo `final` desde el constructor.
+pista2:
+`Diario` es un caso particular de `DiasMinimos(7)`. Puedes reutilizarla **por composición**: un campo `private final Objetivo base = new DiasMinimos(7);` y `cumplido` delega en `base.cumplido(semana)`. Otra opción válida: no crear la clase y usar directamente `new DiasMinimos(7)`. Elige y apunta por qué.
+pista3:
+```java
+public final class DiasMinimos implements Objetivo {
+    private final int n;
+    public DiasMinimos(int n) { this.n = n; }
+
+    public boolean cumplido(List<Registro> semana) {
+        int dias = 0;
+        for (Registro r : semana) if (r.valor() > 0) dias++;
+        return dias >= n;
+    }
+    public String describir() { return n + " días por semana"; }
+}
+```
+
+--- medir
+titulo: ¿Cuesta algo el polimorfismo?
+objetivo: Medir el coste de una llamada a través de una interfaz cuando hay 1, 2 o 4 implementaciones distintas en el mismo punto del código.
+reto:
+Crea una interfaz mínima para aislar el coste de la llamada:
+
+```java
+interface Calc { int aplicar(int x); }
+```
+
+y 4 implementaciones triviales (`x + 1`, `x * 2`, `x - 3`, `x ^ 5`).
+
+Prepara un `Calc[] calcs` de 1024 posiciones para cada escenario:
+
+- **Monomórfico**: las 1024 son la misma implementación.
+- **Bimórfico**: alternan 2 implementaciones.
+- **Megamórfico**: rotan las 4.
+
+Bucle de medición (10 millones de llamadas):
+
+```java
+long total = 0;
+for (int i = 0; i < 10_000_000; i++) total += calcs[i & 1023].aplicar(i);
+sumidero += total;
+```
+
+Mide los 3 escenarios con tu `Bench` y calcula **nanosegundos por llamada**. Extra: compáralo con un `switch` sobre un enum que hace lo mismo.
+hecho:
+- Tienes los ns por llamada de los 3 escenarios en la libreta.
+- Sabes en cuál de ellos el JIT no puede hacer inlining.
+- Tienes una conclusión de una frase: ¿importa este coste en tu tracker?
+minima:
+Solo monomórfico frente a megamórfico.
+pista1:
+`i & 1023` es lo mismo que `i % 1024` cuando 1024 es potencia de 2, pero más barato. Lo verás otra vez en los mapas hash (semana 8).
+pista2:
+El calentamiento es clave: el JIT observa qué clases llegan a cada llamada (el "perfil de tipos") y después decide. Si solo ve 1 o 2 clases, copia el cuerpo del método dentro del bucle (inlining) y la llamada desaparece. Con 3 o más, tiene que buscar el método en una tabla en cada llamada.
+pista3:
+Lo esperable: mono y bi alrededor de 1 ns por llamada, y mega entre 2 y 4 veces más. Si todos dan igual, revisa que usas el resultado (sumidero) y que haces calentamiento. Conclusión típica: el polimorfismo no se elige por velocidad sino por **coste de cambio**, y su coste solo importa en bucles de millones de iteraciones.
+
+--- aplicar
+titulo: Refactoriza el monstruo if/else
+objetivo: Sustituir una cadena de if/else por polimorfismo y comprobar que añadir un tipo nuevo ya no obliga a tocar el código existente.
+reto:
+Copia este código (es el típico que te encuentras en un proyecto real):
+
+```java
+public class EvaluadorFeo {
+    public boolean cumplido(String tipo, List<Registro> semana) {
+        int dias = 0; double suma = 0;
+        for (Registro r : semana) { if (r.valor() > 0) dias++; suma += r.valor(); }
+        if (tipo.equals("gym")) return dias >= 4;
+        else if (tipo.equals("dientes")) return dias == 7;
+        else if (tipo.equals("dormir")) return suma / semana.size() >= 7.0;
+        else if (tipo.equals("basura")) return dias <= 2;
+        throw new IllegalArgumentException("Tipo desconocido: " + tipo);
+    }
+}
+```
+
+1. Añade el tipo "agua" (media ≥ 2 litros) a `EvaluadorFeo`. Apunta cuántas líneas y archivos has tocado.
+2. Ahora hazlo con tu `Objetivo`: ¿cuántas clases existentes has tenido que modificar?
+3. Crea `InformeSemanal` que, dados los hábitos y los registros de una semana, imprime la tabla de la semana 0 más una columna `Objetivo` (✔/✘) con la descripción del objetivo, sin ningún if por tipo.
+hecho:
+- "Agua" funciona sin modificar ninguna clase que ya existía.
+- La tabla muestra ✔/✘ por hábito usando `habito.objetivo().cumplido(...)`.
+- Has apuntado la comparación de líneas y archivos tocados en las dos versiones.
+minima:
+Solo el paso 2 con "agua".
+pista1:
+"Agua, media ≥ 2" ya existe: es `new MediaMinima(2.0)`. A veces añadir un tipo nuevo no requiere ni una clase nueva, solo una combinación nueva de piezas. Esa es la ventaja de la composición.
+pista2:
+Para el informe: agrupa los registros de la semana por `habitoId` (por ahora con un bucle y una lista por hábito; en la semana 8 lo harás con tu propio mapa) y llama a `objetivo().cumplido(registrosDelHabito)`.
+pista3:
+El principio que acabas de aplicar es **abierto/cerrado**: el código está abierto a extensión (nuevas implementaciones) y cerrado a modificación (no tocas lo que ya funciona). En `EvaluadorFeo`, cada tipo nuevo obliga a editar el mismo método, que es justo donde se cuelan los bugs.
+
+--- explica
+reto:
+¿Por qué tu tracker usa una interfaz `Objetivo` en lugar de una clase padre `HabitoBase` con subclases `HabitoGym`, `HabitoDientes`…? ¿Quién decide qué método `cumplido` se ejecuta, y en qué momento?
+guia:
+- Composición ("tiene un") frente a herencia ("es un"): ¿qué pasa si el gym pasa de "4 días" a "media de 60 minutos"?
+- Despacho dinámico: la decisión se toma en ejecución, mirando el objeto real.
+- Lo que hace el JIT con 1, 2 o muchas implementaciones (tus números).
+- Abierto/cerrado con el ejemplo del agua.
+
+=== SEMANA 03
+bloque: 1
+titulo: Genéricos: escribe tus propios <T>
+resumen: Llevas tiempo usando List<String> sin escribir nunca una clase genérica. Esta semana escribes las tuyas, y entiendes qué queda de T cuando el programa se ejecuta.
+sabes:
+- Usar `List<String>`, `Map<String, Integer>` y similares.
+- Interfaces e implementaciones (semana 2).
+nuevo:
+- Declarar clases y métodos genéricos: `class Rango<T>`, `static <T> List<T> filtrar(...)`.
+- Límites de tipo: `<T extends Comparable<? super T>>`.
+- Borrado de tipos (type erasure): T desaparece al compilar.
+- Lambdas como implementación rápida de una interfaz de un método.
+objetivos:
+- Escribir una clase genérica que funcione igual con fechas y con números.
+- Entender por qué `Rango<LocalDate>` no compila con el límite "obvio", y arreglarlo.
+- Ver con tus propios ojos el bytecode de una clase genérica.
+tracker: `Rango<T>`, `Par<A, B>` y `Consultas.filtrar` para responder preguntas sobre tus registros.
+
+--- construir
+titulo: Par<A, B> y Rango<T>
+objetivo: Escribir dos clases genéricas propias y entender los límites de tipo.
+reto:
+1. **Calentamiento (5 min):** `Par<A, B>` inmutable con `primero()` y `segundo()`.
+2. **`Rango<T extends Comparable<T>>`** con `desde` y `hasta` (ambos incluidos):
+   - El constructor lanza excepción si `desde > hasta` (usa `compareTo`).
+   - `boolean contiene(T valor)`
+   - `boolean seSolapa(Rango<T> otro)`
+3. Pruébalo con `Rango<Integer>` y con `Rango<Double>` (horas de sueño sanas: de 7.0 a 9.0).
+4. **Jefe de la sesión:** ahora prueba `Rango<LocalDate>` para representar una semana. **No va a compilar.** Es intencionado: lee el error e intenta entender por qué antes de abrir la pista 3.
+hecho:
+- `Par` y `Rango` funcionan con al menos 2 tipos distintos (con checks).
+- `Rango<LocalDate>` compila y `contiene` funciona con fechas.
+- Puedes explicar en una frase qué significa `? super T`.
+minima:
+Solo `Rango<T>` con `contiene`, probado con `Integer` y `Double`.
+pista1:
+Declarar una clase genérica es poner `<T>` tras el nombre: `public final class Par<A, B> { private final A primero; ... }`. Dentro de la clase, `A` y `B` se usan como cualquier otro tipo.
+pista2:
+`<T extends Comparable<T>>` significa "cualquier T que sepa compararse con otro T". Gracias a eso puedes escribir `desde.compareTo(valor) <= 0 && valor.compareTo(hasta) <= 0`. Dos rangos se solapan si `this.desde <= otro.hasta` y `otro.desde <= this.hasta`.
+pista3:
+`LocalDate` no implementa `Comparable<LocalDate>` sino `Comparable<ChronoLocalDate>` (lo hereda de una interfaz padre). El límite `T extends Comparable<T>` exige exactamente `Comparable<LocalDate>`, así que falla. La solución es `<T extends Comparable<? super T>>`: "T sabe compararse con T **o con algún supertipo de T**". Es lo mismo que usa la propia JDK en `Collections.sort`.
+
+--- medir
+titulo: Datamining: el precio del borrado de tipos
+objetivo: Ver en el bytecode qué queda de T y medir cuánto cuesta el autoboxing en una clase genérica frente a una versión con primitivos.
+reto:
+**Parte 1. Datamining.** Abre el bytecode de `Rango` (en IntelliJ: cursor sobre la clase y *View → Show Bytecode*, o `javap -c -p Rango.class` en la terminal). Busca:
+
+- ¿Qué tipo tienen los campos `desde` y `hasta`?
+- ¿Qué método se llama exactamente en `contiene`?
+- ¿Aparece alguna instrucción `checkcast`?
+
+**Parte 2. Medición.** Crea `RangoInt` (igual pero con `int desde, hasta`). Con tu `Bench`, haz 10 millones de llamadas `contiene(i)`, con `i` de tipo `int`, en:
+
+- `Rango<Integer>`
+- `RangoInt`
+
+Calcula los ns por llamada y cuántas veces más lento es el genérico.
+hecho:
+- Sabes qué tipo tienen los campos en el bytecode (pista: no es T).
+- Tienes los dos tiempos y la proporción en la libreta.
+- Sabes explicar de dónde sale la diferencia.
+minima:
+Solo la parte 1: abrir el bytecode y responder a las 3 preguntas.
+pista1:
+En el bytecode, los campos son `Comparable` (el límite de T) y `contiene` llama a `Comparable.compareTo(Object)`. T solo existe para el compilador: comprueba los tipos y luego lo borra. Esto se llama **type erasure**.
+pista2:
+Cuando llamas a `rango.contiene(i)` con un `int`, Java inserta por ti `Integer.valueOf(i)`: es el autoboxing. Para valores fuera de -128..127, eso significa crear un objeto en cada llamada. `RangoInt` compara dos ints directamente, sin objetos.
+pista3:
+Si la diferencia te sale pequeña, el JIT puede estar aplicando **escape analysis**: detecta que el `Integer` no sale del método y evita crearlo. Prueba a guardar los `Integer` en un array antes de medir (`Integer[] valores`) para obligar a que existan. Diferencias de 2× a 10× son normales.
+
+--- aplicar
+titulo: Consultas genéricas sobre tus registros
+objetivo: Usar `Rango`, `Par` y un método genérico propio para responder preguntas reales sobre los registros del tracker.
+reto:
+1. Crea tu interfaz `Filtro<T> { boolean acepta(T t); }` y el método genérico:
+
+```java
+public static <T> List<T> filtrar(List<T> lista, Filtro<T> filtro)
+```
+
+2. Crea una lista de unos 30 `Registro` inventados (dos semanas de gym, dientes y dormir).
+3. Responde usando `filtrar` con lambdas y `Rango`:
+   - ¿Qué registros de gym hay en la semana del lunes 7 al domingo 13 de diciembre de 2026?
+   - ¿Qué noches dormiste fuera del rango sano de 7 a 9 h?
+   - ¿Cuál fue la peor noche? Devuélvela como `Par<LocalDate, Double>`.
+hecho:
+- `filtrar` funciona con `List<Registro>` y también con `List<String>` (pruébalo).
+- Las 3 preguntas tienen respuesta con checks.
+- No hay ningún `for` repetido para filtrar: todo pasa por `filtrar`.
+minima:
+`filtrar` y la primera pregunta.
+pista1:
+En un método genérico, el `<T>` va **antes** del tipo de retorno: `public static <T> List<T> filtrar(...)`. Dentro: crea una lista vacía, recorre la de entrada y añade los elementos que cumplan `filtro.acepta(x)`.
+pista2:
+Una lambda es una implementación rápida de una interfaz con un solo método: `filtrar(registros, r -> r.habitoId().equals("gym"))`. Java sabe que `r` es un `Registro` porque la lista es `List<Registro>`.
+pista3:
+Para la segunda pregunta: `Rango<Double> sano = new Rango<>(7.0, 9.0);` y después `filtrar(registrosSueno, r -> !sano.contiene(r.valor()))`. Para la peor noche, recorre una vez guardando el mínimo y crea el `Par` al final.
+
+--- explica
+reto:
+Explica qué es el borrado de tipos (type erasure). Usa como ejemplo por qué `new T[10]` no compila dentro de una clase genérica, y qué guarda realmente un `List<Integer>` en memoria.
+guia:
+- T existe para el compilador, no para la JVM: tu bytecode lo demuestra.
+- Si en ejecución T no existe, ¿cómo iba a saber la JVM de qué tipo crear el array?
+- `List<Integer>` guarda referencias a objetos `Integer`, nunca ints (tus números de las semanas 1 y 3).
+- Pista para la semana que viene: así es como `ArrayList` crea su array interno.
